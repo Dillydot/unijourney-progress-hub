@@ -1,7 +1,7 @@
 import admissionsMark from "@/assets/admissions-mark.png";
 import { FilterSelect } from "@/components/dashboard/ProgressScreen";
 import { Button } from "@/components/ui/button";
-import { CourseKind, PlanCourse, planCourses, teacherProfiles } from "@/data/plan";
+import type { CourseKind, PlanCourse, ProgrammePlan } from "@/lib/kth";
 import { Lang, ProgressCopy } from "@/lib/copy";
 import {
   CalendarDays,
@@ -15,12 +15,28 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-export function PlanScreen({ lang, t }: { lang: Lang; t: ProgressCopy }) {
-  const [year, setYear] = useState<1 | 2>(1);
+export function PlanScreen({
+  lang,
+  t,
+  plan,
+  loading,
+  failed,
+  programmeCode,
+  myCodes,
+}: {
+  lang: Lang;
+  t: ProgressCopy;
+  plan: ProgrammePlan | undefined;
+  loading: boolean;
+  failed: boolean;
+  programmeCode: string;
+  myCodes: string[];
+}) {
+  const [year, setYear] = useState(1);
   const [semester, setSemester] = useState("all");
   const [period, setPeriod] = useState("all");
   const [kind, setKind] = useState<"all" | CourseKind>("all");
-  const yearCourses = planCourses.filter((course) => course.year === year);
+  const yearCourses = (plan?.courses ?? []).filter((course) => course.year === year);
   const semesters = [...new Set(yearCourses.map((course) => course.semester))];
   const visible = yearCourses.filter(
     (course) =>
@@ -41,7 +57,7 @@ export function PlanScreen({ lang, t }: { lang: Lang; t: ProgressCopy }) {
     return value.replace("Autumn", "Höst").replace("Spring", "Vår");
   };
 
-  function changeYear(next: 1 | 2) {
+  function changeYear(next: number) {
     setYear(next);
     setSemester("all");
     setPeriod("all");
@@ -51,113 +67,136 @@ export function PlanScreen({ lang, t }: { lang: Lang; t: ProgressCopy }) {
     <section id="courses" className="card-enter scroll-mt-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="section-label">TTBEM</p>
+          <p className="section-label">{programmeCode}</p>
           <h1 className="mt-1 font-display text-2xl font-bold md:text-3xl">{t.planTitle}</h1>
           <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">{t.planIntro}</p>
         </div>
-        <span className="rounded-full bg-primary-soft px-3 py-1.5 text-xs font-bold text-primary">
-          {t.programmeSummary}
-        </span>
+        {plan && (
+          <span className="rounded-full bg-primary-soft px-3 py-1.5 text-xs font-bold text-primary">
+            {t.programmeSummary(plan.years)}
+          </span>
+        )}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 rounded-xl bg-secondary p-1" aria-label={t.studyYear}>
-        {[1, 2].map((value) => (
-          <Button
-            key={value}
-            type="button"
-            variant={year === value ? "default" : "ghost"}
-            onClick={() => changeYear(value as 1 | 2)}
-            aria-pressed={year === value}
-            className="h-9"
-          >
-            {value === 1 ? t.yearOne : t.yearTwo}
-          </Button>
-        ))}
-      </div>
-
-      <div className="mt-3 grid gap-3 rounded-2xl border border-border bg-card p-3 shadow-card sm:grid-cols-3">
-        <FilterSelect
-          label={t.semester}
-          value={semester}
-          onChange={setSemester}
-          options={[
-            ["all", t.allSemesters],
-            ...semesters.map((value): [string, string] => [value, translateSemester(value)]),
-          ]}
-        />
-        <FilterSelect
-          label={t.studyPeriod}
-          value={period}
-          onChange={setPeriod}
-          options={[
-            ["all", t.allPeriods],
-            ...periodOrder.map((value): [string, string] => [
-              value,
-              `${t.studyPeriod} ${value.slice(1)}`,
-            ]),
-          ]}
-        />
-        <FilterSelect
-          label={t.courseType}
-          value={kind}
-          onChange={(value) => setKind(value as "all" | CourseKind)}
-          options={[
-            ["all", t.allCourseTypes],
-            ["mandatory", t.mandatory],
-            ["elective", t.elective],
-          ]}
-        />
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-bold">{t.coursesFound(visibleCourseCount)}</p>
-        <p className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <Info className="size-4 text-primary" aria-hidden="true" />
-          {t.electiveRequirement}
-        </p>
-      </div>
-
-      {groups.length ? (
-        <div className="mt-3 space-y-4">
-          {groups.map((group) => {
-            const firstCourse = group.courses[0];
-            if (!firstCourse) return null;
-            return (
-              <section key={group.period} aria-labelledby={`plan-${group.period}`}>
-                <div className="mb-2 flex items-center gap-2.5">
-                  <span className="grid size-8 place-items-center rounded-lg bg-primary font-display text-xs font-bold text-primary-foreground">
-                    {group.period}
-                  </span>
-                  <div>
-                    <h2
-                      id={`plan-${group.period}`}
-                      className="font-display text-base font-bold leading-5"
-                    >
-                      {t.studyPeriod} {group.period.slice(1)}
-                    </h2>
-                    <p className="text-[0.6875rem] font-semibold text-muted-foreground">
-                      {translateSemester(firstCourse.semester)}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3">
-                  {group.courses.map((course) => (
-                    <PlanCourseCard
-                      key={`${course.code}-${course.period}`}
-                      course={course}
-                      t={t}
-                      lang={lang}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+      {!plan ? (
+        <div
+          className="mt-4 rounded-2xl border border-dashed border-border py-8 text-center text-sm font-semibold text-muted-foreground"
+          role={failed ? "alert" : "status"}
+        >
+          {loading ? t.planLoading : t.planFailed}
         </div>
       ) : (
-        <div className="mt-3 rounded-2xl border border-dashed border-border py-8 text-center text-sm font-semibold text-muted-foreground">
-          {t.noPlannedCourses}
-        </div>
+        <>
+          <div
+            className="mt-4 grid rounded-xl bg-secondary p-1"
+            style={{ gridTemplateColumns: `repeat(${plan.years}, minmax(0, 1fr))` }}
+            aria-label={t.studyYear}
+          >
+            {Array.from({ length: plan.years }, (_, i) => i + 1).map((value) => (
+              <Button
+                key={value}
+                type="button"
+                variant={year === value ? "default" : "ghost"}
+                onClick={() => changeYear(value)}
+                aria-pressed={year === value}
+                className="h-9"
+              >
+                {t.yearN(value)}
+              </Button>
+            ))}
+          </div>
+
+          <div className="mt-3 grid gap-3 rounded-2xl border border-border bg-card p-3 shadow-card sm:grid-cols-3">
+            <FilterSelect
+              label={t.semester}
+              value={semester}
+              onChange={setSemester}
+              options={[
+                ["all", t.allSemesters],
+                ...semesters.map((value): [string, string] => [value, translateSemester(value)]),
+              ]}
+            />
+            <FilterSelect
+              label={t.studyPeriod}
+              value={period}
+              onChange={setPeriod}
+              options={[
+                ["all", t.allPeriods],
+                ...periodOrder.map((value): [string, string] => [
+                  value,
+                  `${t.studyPeriod} ${value.slice(1)}`,
+                ]),
+              ]}
+            />
+            <FilterSelect
+              label={t.courseType}
+              value={kind}
+              onChange={(value) => setKind(value as "all" | CourseKind)}
+              options={[
+                ["all", t.allCourseTypes],
+                ["mandatory", t.mandatory],
+                ["elective", t.elective],
+              ]}
+            />
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-bold">{t.coursesFound(visibleCourseCount)}</p>
+            {plan.notes.map((note) => (
+              <p
+                key={note}
+                className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"
+              >
+                <Info className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                {note}
+              </p>
+            ))}
+          </div>
+
+          {groups.length ? (
+            <div className="mt-3 space-y-4">
+              {groups.map((group) => {
+                const firstCourse = group.courses[0];
+                if (!firstCourse) return null;
+                return (
+                  <section key={group.period} aria-labelledby={`plan-${group.period}`}>
+                    <div className="mb-2 flex items-center gap-2.5">
+                      <span className="grid size-8 place-items-center rounded-lg bg-primary font-display text-xs font-bold text-primary-foreground">
+                        {group.period}
+                      </span>
+                      <div>
+                        <h2
+                          id={`plan-${group.period}`}
+                          className="font-display text-base font-bold leading-5"
+                        >
+                          {t.studyPeriod} {group.period.slice(1)}
+                        </h2>
+                        <p className="text-[0.6875rem] font-semibold text-muted-foreground">
+                          {translateSemester(firstCourse.semester)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3">
+                      {group.courses.map((course) => (
+                        <PlanCourseCard
+                          key={`${course.code}-${course.applicationCode}-${course.period}`}
+                          course={course}
+                          mine={myCodes.includes(course.code)}
+                          t={t}
+                          lang={lang}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-3 rounded-2xl border border-dashed border-border py-8 text-center text-sm font-semibold text-muted-foreground">
+              {t.noPlannedCourses}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
@@ -167,12 +206,14 @@ export function PlanCourseCard({
   course,
   t,
   lang,
+  mine,
 }: {
   course: PlanCourse;
   t: ProgressCopy;
   lang: Lang;
+  mine: boolean;
 }) {
-  const teacherUrl = course.examiner ? teacherProfiles[course.examiner] : undefined;
+  const teacherUrl = course.examinerUrl;
   const location = course.location ?? t.defaultLocation;
   const language = course.language ?? t.defaultLanguage;
   const duration = course.spansTwoPeriods ? t.twoPeriods : t.onePeriod;
@@ -217,6 +258,11 @@ export function PlanCourseCard({
           {course.kind === "mandatory" ? t.mandatory : t.elective}
         </span>
         <span className="truncate text-[0.6875rem] font-bold text-primary">{course.code}</span>
+        {mine && (
+          <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[0.625rem] font-bold text-foreground">
+            {t.yourCourse}
+          </span>
+        )}
         <span className="ml-auto shrink-0 text-[0.6875rem] font-bold tabular-nums">
           {course.credits} {t.ectsUnit}
         </span>
@@ -247,6 +293,19 @@ export function PlanCourseCard({
             KTH
           </a>
         </Button>
+        {course.scheduleUrl && (
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-7 flex-1 gap-1 rounded-lg px-2 text-[0.6875rem] font-bold"
+          >
+            <a href={course.scheduleUrl} target="_blank" rel="noreferrer">
+              <CalendarDays className="size-3" aria-hidden="true" />
+              {t.schedule}
+            </a>
+          </Button>
+        )}
         <Button
           asChild
           variant="outline"

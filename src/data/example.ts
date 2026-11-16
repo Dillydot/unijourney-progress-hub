@@ -1,14 +1,6 @@
 import { IconComponent } from "@/components/dashboard/parts";
 import { Award, BellRing, Clock, Globe, Newspaper } from "lucide-react";
 
-export const nextDeadline = {
-  title: "Study period 3 registration",
-  course: "Research Methods",
-  courseCode: "TTBEM01",
-  date: "20 November 2026",
-  iso: "2026-11-20T23:59:00",
-};
-
 export type Tone = "primary" | "success" | "warning" | "destructive";
 
 export type NotificationTarget = "dashboard" | "progress" | "plan" | "news" | "profile";

@@ -1,4 +1,5 @@
 // Turns the rows stored in Supabase into the shapes the dashboard screens render.
+import { termOf } from "./kth";
 import type { LadokGrade, StudentCourse } from "./ladok";
 
 export type Grade = "A" | "B" | "C" | "D" | "E" | "P" | "Fail";
@@ -217,6 +218,8 @@ export function buildStudentView(
     semesters: [...new Set(slots.map((s) => s.semester))],
     academicYears: [...new Set(slots.map((s) => s.academicYear))],
     transcriptPrinted: profile.transcript_printed,
+    programmeTerm: profile.programme_start ? termOf(profile.programme_start) : null,
+    courseCodes: courses.flatMap((c) => (c.code ? [c.code] : [])),
   };
 }
 

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Lang = "en" | "sv";
-export type CalendarKind = "lecture" | "seminar" | "exam" | "application" | "registration";
+export type CalendarKind = "course" | "lecture" | "seminar" | "exam" | "application" | "registration";
 
 export type CalendarEvent = {
   id: string;
@@ -22,8 +22,8 @@ export type CalendarEvent = {
 const copy = {
   en: {
     title: "Calendar",
-    intro: "Lectures, seminars, exams and the application and registration windows in one place.",
-    example: "Example data",
+    intro: "Course dates and registration deadlines from kth.se. Open a course for its full schedule in TimeEdit.",
+    example: "From kth.se",
     week: "Week",
     month: "Month",
     today: "Today",
@@ -39,6 +39,7 @@ const copy = {
     reminderOn: "Reminder on",
     remindersSet: "reminders set",
     kinds: {
+      course: "Course",
       lecture: "Lecture",
       seminar: "Seminar",
       exam: "Exam",
@@ -50,8 +51,8 @@ const copy = {
   },
   sv: {
     title: "Kalender",
-    intro: "Föreläsningar, seminarier, tentor samt ansöknings- och registreringsperioder på ett ställe.",
-    example: "Exempeldata",
+    intro: "Kursdatum och registreringsdatum från kth.se. Öppna en kurs för hela schemat i TimeEdit.",
+    example: "Från kth.se",
     week: "Vecka",
     month: "Månad",
     today: "Idag",
@@ -67,6 +68,7 @@ const copy = {
     reminderOn: "Påminnelse på",
     remindersSet: "påminnelser satta",
     kinds: {
+      course: "Kurs",
       lecture: "Föreläsning",
       seminar: "Seminarium",
       exam: "Tenta",
@@ -79,6 +81,7 @@ const copy = {
 } as const;
 
 const kindStyle: Record<CalendarKind, { dot: string; chip: string }> = {
+  course: { dot: "bg-primary", chip: "bg-primary-soft text-primary" },
   lecture: { dot: "bg-primary", chip: "bg-primary-soft text-primary" },
   seminar: { dot: "bg-success", chip: "bg-success-soft text-success" },
   exam: { dot: "bg-destructive", chip: "bg-destructive/10 text-destructive" },
@@ -102,57 +105,11 @@ const isoWeek = (d: Date) => {
   return Math.ceil(((t.getTime() - y0.getTime()) / 86_400_000 + 1) / 7);
 };
 
-const ADMISSIONS_URL = "https://www.universityadmissions.se/intl/start";
-const LADOK_URL = "https://ladok.se/";
 /** Google Maps deep link — opens the location directly, no API key needed. */
 const mapsUrl = (location: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${location}, KTH, Stockholm`)}`;
 
-/** Weekly teaching pattern for autumn 2026, plus fixed exams and admin windows. */
-function buildEvents(): CalendarEvent[] {
-  const events: CalendarEvent[] = [];
-  const pattern: Array<{
-    weekday: number; // 0 = Mon
-    start: string;
-    end: string;
-    kind: CalendarKind;
-    title: string;
-    code: string;
-    room: string;
-    location: string;
-    from: string;
-    to: string;
-  }> = [
-    { weekday: 0, start: "10:00", end: "12:00", kind: "lecture", title: "Research Methods", code: "ME2003", room: "Q2, Malvinas väg 10", location: "Malvinas väg 10", from: "2026-08-24", to: "2026-12-18" },
-    { weekday: 2, start: "13:00", end: "15:00", kind: "seminar", title: "Research Methods seminar", code: "ME2003", room: "Lindstedtsvägen 30, M311", location: "Lindstedtsvägen 30", from: "2026-08-24", to: "2026-12-18" },
-    { weekday: 1, start: "09:00", end: "12:00", kind: "lecture", title: "Entrepreneurial Venture Creation", code: "ME2625", room: "Lindstedtsvägen 30, M1", location: "Lindstedtsvägen 30", from: "2026-08-24", to: "2026-12-18" },
-    { weekday: 3, start: "13:00", end: "16:00", kind: "seminar", title: "Venture Creation workshop", code: "ME2625", room: "KTH Innovation, Teknikringen 1", location: "Teknikringen 1", from: "2026-08-24", to: "2026-12-18" },
-  ];
-  for (const p of pattern) {
-    let d = addDays(startOfWeek(fromKey(p.from)), p.weekday);
-    const end = fromKey(p.to);
-    while (d <= end) {
-      if (d >= fromKey(p.from)) {
-        events.push({ id: `${p.code}-${p.kind}-${toKey(d)}`, date: toKey(d), start: p.start, end: p.end, kind: p.kind, title: p.title, code: p.code, room: p.room, location: p.location });
-      }
-      d = addDays(d, 7);
-    }
-  }
-  events.push(
-    { id: "exam-me2003-mid", date: "2026-10-22", start: "08:00", end: "12:00", kind: "exam", title: "Research Methods — written exam (part 1)", code: "ME2003", room: "Brinellhallen", location: "Brinellvägen 23" },
-    { id: "exam-me2003", date: "2027-01-13", start: "14:00", end: "18:00", kind: "exam", title: "Research Methods — final exam", code: "ME2003", room: "Brinellhallen", location: "Brinellvägen 23" },
-    { id: "exam-me2625", date: "2027-01-15", start: "08:00", end: "12:00", kind: "exam", title: "Venture Creation — pitch examination", code: "ME2625", room: "KTH Innovation", location: "Teknikringen 1" },
-    { id: "apply-open", date: "2026-12-01", kind: "application", title: "Course applications open on universityadmissions.se", href: ADMISSIONS_URL },
-    { id: "apply-close", date: "2027-01-20", kind: "application", title: "Course applications close on universityadmissions.se", href: ADMISSIONS_URL },
-    { id: "reg-open", date: "2026-12-22", kind: "registration", title: "Course registration opens in Ladok", href: LADOK_URL },
-    { id: "reg-close", date: "2027-01-12", kind: "registration", title: "Course registration closes in Ladok", href: LADOK_URL },
-  );
-  return events.sort((a, b) => (a.date + (a.start ?? "")).localeCompare(b.date + (b.start ?? "")));
-}
-
-export const calendarEvents = buildEvents();
-
-export function CalendarScreen({ lang }: { lang: Lang }) {
+export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarEvent[] }) {
   const c = copy[lang];
   const [view, setView] = useState<"week" | "month">("week");
   const todayKey = toKey(new Date());
@@ -169,9 +126,9 @@ export function CalendarScreen({ lang }: { lang: Lang }) {
 
   const byDay = useMemo(() => {
     const m: Record<string, CalendarEvent[]> = {};
-    for (const e of calendarEvents) (m[e.date] ??= []).push(e);
+    for (const e of events) (m[e.date] ??= []).push(e);
     return m;
-  }, []);
+  }, [events]);
 
   const weekStart = startOfWeek(cursor);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));

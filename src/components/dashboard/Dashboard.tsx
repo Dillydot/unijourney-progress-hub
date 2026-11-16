@@ -17,7 +17,10 @@ import {
   StatTile,
 } from "@/components/dashboard/parts";
 import { Button } from "@/components/ui/button";
-import { nextDeadline, notifications } from "@/data/example";
+import { notifications } from "@/data/example";
+import { eventsFromPlan, nextDeadline as findNextDeadline } from "@/lib/kth";
+import { getKthPlan } from "@/lib/kth-api";
+import { useQuery } from "@tanstack/react-query";
 import { Lang, ui } from "@/lib/copy";
 import { Grade, StudentView } from "@/lib/student-view";
 import {
@@ -44,7 +47,7 @@ import {
   TrendingUp,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export type Tab = "dashboard" | "progress" | "plan" | "calendar" | "news" | "profile";
 
@@ -69,7 +72,24 @@ export function Dashboard({
   onSignOut: () => void;
 }) {
   const { student, progress } = view;
-  const daysLeft = daysUntil(nextDeadline.iso);
+  const planQuery = useQuery({
+    queryKey: ["kth-plan", student.programmeCode, view.programmeTerm],
+    queryFn: () =>
+      getKthPlan({
+        data: { programmeCode: student.programmeCode, term: view.programmeTerm ?? "" },
+      }),
+    enabled: Boolean(view.programmeTerm),
+    staleTime: 12 * 60 * 60 * 1000,
+  });
+  const plan = planQuery.data;
+  const planEvents = useMemo(
+    () => (plan ? eventsFromPlan(plan, view.courseCodes) : []),
+    [plan, view.courseCodes],
+  );
+  const deadline = plan
+    ? findNextDeadline(planEvents, plan.courses, new Date().toISOString().slice(0, 10))
+    : null;
+  const daysLeft = deadline ? daysUntil(deadline.iso) : 0;
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notes, setNotes] = useState(notifications);
   const nc = newsCopy[lang];
@@ -327,46 +347,48 @@ export function Dashboard({
         {tab === "dashboard" && (
           <div className="grid gap-3 md:grid-cols-12 md:gap-5">
             {/* Next registration deadline ------------------------------------------ */}
-            <section
-              id="deadline"
-              className="card-enter card-enter-delay scroll-mt-6 rounded-2xl border border-warning-border bg-warning-soft p-4 shadow-card md:col-span-5 md:p-5"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="section-label text-warning-foreground/70">{t.nextDeadline}</p>
-                <span className="shrink-0 rounded-full bg-warning px-2.5 py-1 text-[11px] font-bold text-warning-foreground">
-                  {t.daysLeft(daysLeft)}
-                </span>
-              </div>
-
-              <div className="mt-3 flex items-start gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-warning text-warning-foreground">
-                  <CalendarClock className="size-4" aria-hidden="true" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="truncate font-display text-base font-bold text-warning-foreground">
-                    {nextDeadline.title}
-                  </h2>
-                  <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5">
-                    <div className="min-w-0">
-                      <dt className="text-[11px] font-semibold text-warning-foreground/70">
-                        {t.relatedCourse}
-                      </dt>
-                      <dd className="truncate text-sm font-bold text-warning-foreground">
-                        {nextDeadline.course} · {nextDeadline.courseCode}
-                      </dd>
-                    </div>
-                    <div className="min-w-0">
-                      <dt className="text-[11px] font-semibold text-warning-foreground/70">
-                        {t.dateLabel}
-                      </dt>
-                      <dd className="truncate text-sm font-bold text-warning-foreground">
-                        {nextDeadline.date}
-                      </dd>
-                    </div>
-                  </dl>
+            {deadline && (
+              <section
+                id="deadline"
+                className="card-enter card-enter-delay scroll-mt-6 rounded-2xl border border-warning-border bg-warning-soft p-4 shadow-card md:col-span-5 md:p-5"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="section-label text-warning-foreground/70">{t.nextDeadline}</p>
+                  <span className="shrink-0 rounded-full bg-warning px-2.5 py-1 text-[11px] font-bold text-warning-foreground">
+                    {t.daysLeft(daysLeft)}
+                  </span>
                 </div>
-              </div>
-            </section>
+
+                <div className="mt-3 flex items-start gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-warning text-warning-foreground">
+                    <CalendarClock className="size-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="truncate font-display text-base font-bold text-warning-foreground">
+                      {deadline.title}
+                    </h2>
+                    <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5">
+                      <div className="min-w-0">
+                        <dt className="text-[11px] font-semibold text-warning-foreground/70">
+                          {t.relatedCourse}
+                        </dt>
+                        <dd className="truncate text-sm font-bold text-warning-foreground">
+                          {deadline.course} · {deadline.courseCode}
+                        </dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[11px] font-semibold text-warning-foreground/70">
+                          {t.dateLabel}
+                        </dt>
+                        <dd className="truncate text-sm font-bold text-warning-foreground">
+                          {deadline.date}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                </div>
+              </section>
+            )}
 
             {/* Recent grades ------------------------------------------------------- */}
             <section
@@ -389,9 +411,19 @@ export function Dashboard({
         )}
 
         {/* Plan ------------------------------------------------------------------- */}
-        {tab === "plan" && <PlanScreen lang={lang} t={t} />}
+        {tab === "plan" && (
+          <PlanScreen
+            lang={lang}
+            t={t}
+            plan={plan}
+            loading={planQuery.isLoading}
+            failed={planQuery.isError}
+            programmeCode={student.programmeCode}
+            myCodes={view.courseCodes}
+          />
+        )}
 
-        {tab === "calendar" && <CalendarScreen lang={lang} />}
+        {tab === "calendar" && <CalendarScreen lang={lang} events={planEvents} />}
 
         {tab === "news" && <NewsScreen lang={lang} />}
 
