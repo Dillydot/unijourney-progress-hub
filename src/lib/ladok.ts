@@ -43,7 +43,7 @@ const lines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boo
 /** `code` tells the upload screen which Ladok setting the student has to change. */
 export class LadokError extends Error {
   constructor(
-    readonly code: "swedish" | "wrong_document" | "unreadable",
+    readonly code: "swedish" | "wrong_document" | "missing_codes" | "unreadable",
     message: string,
   ) {
     super(message);
@@ -142,6 +142,9 @@ export function parseRegistration(text: string): Registration {
     else if (!current.nameDone) current.name += ` ${line}`;
   }
 
+  // Without "Codes for courses, programmes" no row starts with a course code.
+  if (courses.length === 0)
+    throw new LadokError("missing_codes", "No course codes found; tick \"Codes for courses, programmes, etc.\" in Ladok");
   return { printDate: printDate(text), controlCode: controlCode(text), programme, courses };
 }
 

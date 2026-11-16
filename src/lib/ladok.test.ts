@@ -127,5 +127,6 @@ const errorCode = (fn: () => unknown) => {
 test("tells the student which Ladok setting is wrong", () => {
   expect(errorCode(() => parseTranscript(registration))).toBe("wrong_document");
   expect(errorCode(() => parseRegistration(transcript))).toBe("wrong_document");
+  expect(errorCode(() => parseRegistration(registration.replace(/^ME\d{4} /gm, "")))).toBe("missing_codes");
   expect(errorCode(() => parseTranscript("Officiellt resultatintyg Utskriftsdatum\n2026-11-16"))).toBe("swedish");
 });
