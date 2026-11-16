@@ -38,7 +38,7 @@ ME2188 Luxury Strategy and Business Reality
 Rate of study: 25 %, Teaching hours: Day-time
 3.0 hp 2026-08-24 - 2026-10-23
 Check the certificate on: https://student.ladok.se/verifiera/ Personal identity number: 19990101-0000
-Verifiable until: 2026-12-27 control code: N5E9KIL57K
+Verifiable until: 2026-12-27 control code: QWE456RTY0
 Page 1 / 2
 Jane Doe Certificate of Registration KTH Royal Institute of
 Technology
