@@ -182,11 +182,11 @@
 }
 
 @utility progress-ring {
-  background: conic-gradient(var(--primary-foreground) 0 50%, color-mix(in oklab, var(--primary-foreground) 18%, transparent) 50% 100%);
+  background: conic-gradient(var(--primary-foreground) 0 var(--progress, 0%), color-mix(in oklab, var(--primary-foreground) 18%, transparent) var(--progress, 0%) 100%);
 }
 
 @utility progress-fill {
-  width: 50%;
+  width: var(--progress, 0%);
 }
 
 @utility card-enter {

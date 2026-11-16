@@ -1,4 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { Session } from "@supabase/supabase-js";
+import { AuthScreen } from "@/components/AuthScreen";
+import { LadokImport } from "@/components/LadokImport";
+import { supabase } from "@/lib/supabase";
+import {
+  averageGrade,
+  buildStudentView,
+  type CompletedCourse,
+  type CourseRow,
+  type Grade,
+  type ProfileRow,
+  type StudentView,
+} from "@/lib/student-view";
 import {
   Award,
   Bell,
@@ -14,6 +27,7 @@ import {
   Clock,
   Copy,
   ExternalLink,
+  FileUp,
   Globe,
   GraduationCap,
   Hash,
@@ -33,7 +47,7 @@ import {
   TrendingUp,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CalendarScreen } from "@/components/CalendarScreen";
 import admissionsMark from "@/assets/admissions-mark.png";
@@ -70,32 +84,6 @@ export const Route = createFileRoute("/")({
 // ---------------------------------------------------------------------------
 // Example data used to fill the interface.
 // ---------------------------------------------------------------------------
-
-const student = {
-  firstName: "John",
-  lastName: "Doe",
-  fullName: "John Doe",
-  initials: "JD",
-  studentId: "JODO001",
-  email: "jodo@kth.se",
-  university: "KTH Royal Institute of Technology",
-  programme: "Technology-Based Entrepreneurship",
-  programmeCode: "TTBEM",
-  degreeLevel: "Master’s",
-  admissionYear: "2026",
-  department: "School of Industrial Engineering and Management",
-  departmentCode: "itm",
-  studyYear: "Year 1",
-  status: "Active",
-};
-
-const progress = {
-  completedCredits: "60",
-  totalCredits: "120",
-  remainingCredits: "60",
-  programmeProgress: "50%",
-  passedCourses: "8",
-};
 
 const nextDeadline = {
   title: "Study period 3 registration",
@@ -163,175 +151,7 @@ const teacherProfiles: Record<string, string> = {
   "Bo Karlson": "https://www.kth.se/profile/bokarl",
 };
 
-const recentGrades = [
-  {
-    name: "Business Development",
-    code: "TTBEM13",
-    grade: "B",
-    credits: "7.5 ECTS",
-    date: "12 June 2026",
-  },
-  {
-    name: "Strategic Management",
-    code: "TTBEM15",
-    grade: "Fail",
-    credits: "7.5 ECTS",
-    date: "11 June 2026",
-  },
-  {
-    name: "Organisational Behaviour",
-    code: "TTBEM14",
-    grade: "E",
-    credits: "7.5 ECTS",
-    date: "10 June 2026",
-  },
-];
-
-type Grade = "A" | "B" | "C" | "D" | "E" | "Fail";
 type ProgressGrouping = "period" | "semester" | "year";
-
-// All finished courses for the persona: 8 passed + 3 failed, spread over the
-// four study periods of academic year 2025–26 (Autumn 2025 + Spring 2026).
-const completedCourses = [
-  {
-    name: "Entrepreneurship Fundamentals",
-    code: "TTBEM02",
-    grade: "A" as Grade,
-    credits: 7.5,
-    completed: "24 October 2025",
-    period: "1",
-    semester: "Autumn 2025",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Innovation & Idea Development",
-    code: "TTBEM03",
-    grade: "B" as Grade,
-    credits: 7.5,
-    completed: "28 October 2025",
-    period: "1",
-    semester: "Autumn 2025",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Marketing Management",
-    code: "TTBEM07",
-    grade: "B" as Grade,
-    credits: 7.5,
-    completed: "12 January 2026",
-    period: "2",
-    semester: "Autumn 2025",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Corporate Finance",
-    code: "TTBEM08",
-    grade: "Fail" as Grade,
-    credits: 7.5,
-    completed: "14 January 2026",
-    period: "2",
-    semester: "Autumn 2025",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Academic Writing in English",
-    code: "TTBEM04",
-    grade: "C" as Grade,
-    credits: 7.5,
-    completed: "15 January 2026",
-    period: "2",
-    semester: "Autumn 2025",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Digital Transformation",
-    code: "TTBEM10",
-    grade: "D" as Grade,
-    credits: 7.5,
-    completed: "18 March 2026",
-    period: "3",
-    semester: "Spring 2026",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Product Development",
-    code: "TTBEM09",
-    grade: "A" as Grade,
-    credits: 7.5,
-    completed: "20 March 2026",
-    period: "3",
-    semester: "Spring 2026",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Operations Management",
-    code: "TTBEM11",
-    grade: "Fail" as Grade,
-    credits: 7.5,
-    completed: "23 March 2026",
-    period: "3",
-    semester: "Spring 2026",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Organisational Behaviour",
-    code: "TTBEM14",
-    grade: "E" as Grade,
-    credits: 7.5,
-    completed: "10 June 2026",
-    period: "4",
-    semester: "Spring 2026",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Strategic Management",
-    code: "TTBEM15",
-    grade: "Fail" as Grade,
-    credits: 7.5,
-    completed: "11 June 2026",
-    period: "4",
-    semester: "Spring 2026",
-    academicYear: "2025–26",
-  },
-  {
-    name: "Business Development",
-    code: "TTBEM13",
-    grade: "B" as Grade,
-    credits: 7.5,
-    completed: "12 June 2026",
-    period: "4",
-    semester: "Spring 2026",
-    academicYear: "2025–26",
-  },
-];
-
-const gradePoints: Record<Grade, number> = { A: 5, B: 4, C: 3, D: 2, E: 1, Fail: 0 };
-
-// Earned credits and average grade are derived from the courses above so the
-// charts always stay in sync with the course list.
-const ectsByPeriod = ["1", "2", "3", "4"].map((period) => {
-  const courses = completedCourses.filter((course) => course.period === period);
-  return {
-    period: `P${period}`,
-    semester: courses[0]?.semester ?? "Autumn 2025",
-    earned: courses
-      .filter((course) => course.grade !== "Fail")
-      .reduce((total, course) => total + course.credits, 0),
-    expected: 15,
-  };
-});
-
-const gradeTrend = ["1", "2", "3", "4"].map((period) => {
-  const courses = completedCourses.filter((course) => course.period === period);
-  const average =
-    courses.reduce((total, course) => total + gradePoints[course.grade], 0) /
-    Math.max(courses.length, 1);
-  return {
-    period: `P${period}`,
-    semester: courses[0]?.semester ?? "Autumn 2025",
-    value: Math.round(average * 10) / 10,
-  };
-});
 
 type NotificationTarget = "dashboard" | "progress" | "plan" | "news" | "profile";
 
@@ -460,7 +280,7 @@ const ui = {
     latestFirst: "Latest first",
     resultLabel: (date: string) => `Result ${date}`,
     profile: "Profile",
-    exampleData: "Example data",
+    exampleData: "From Ladok",
     studentId: "Student ID",
     studentStatus: "Student status",
     activeStatus: "Active",
@@ -490,8 +310,7 @@ const ui = {
     studyPeriod: "Study period",
     semester: "Semester",
     academicYearFilter: "Academic year",
-    spring2026: "Spring 2026",
-    autumn2025: "Autumn 2025",
+    updateFromLadok: "Update from Ladok",
     ectsProgress: "ECTS progress",
     ectsProgressDescription: "Earned credits compared with your expected study plan",
     earned: "Earned",
@@ -583,7 +402,7 @@ const ui = {
     latestFirst: "Senaste först",
     resultLabel: (date: string) => `Resultat ${date}`,
     profile: "Profil",
-    exampleData: "Exempeldata",
+    exampleData: "Från Ladok",
     studentId: "Student-ID",
     studentStatus: "Studentstatus",
     activeStatus: "Aktiv",
@@ -613,8 +432,7 @@ const ui = {
     studyPeriod: "Läsperiod",
     semester: "Termin",
     academicYearFilter: "Läsår",
-    spring2026: "Vår 2026",
-    autumn2025: "Höst 2025",
+    updateFromLadok: "Uppdatera från Ladok",
     ectsProgress: "Poängutveckling",
     ectsProgressDescription: "Avklarade poäng jämfört med förväntad studieplan",
     earned: "Avklarat",
@@ -688,11 +506,89 @@ function daysUntil(iso: string) {
 
 // ---------------------------------------------------------------------------
 
+type StoredData = { profile: ProfileRow; courses: CourseRow[] } | null;
+
 function Index() {
+  const [lang, setLang] = useState<Lang>("en");
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [data, setData] = useState<StoredData | undefined>(undefined);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reimport, setReimport] = useState(false);
+  const userId = session?.user.id;
+
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  async function load() {
+    setLoadError(null);
+    const [profile, courses] = await Promise.all([
+      supabase.from("profiles").select("*").maybeSingle<ProfileRow>(),
+      supabase.from("courses").select("*").returns<CourseRow[]>(),
+    ]);
+    const error = profile.error ?? courses.error;
+    if (error) setLoadError(error.message);
+    else setData(profile.data ? { profile: profile.data, courses: courses.data ?? [] } : null);
+  }
+
+  useEffect(() => {
+    setData(undefined);
+    if (userId) void load();
+  }, [userId]);
+
+  if (session === null) return <AuthScreen lang={lang} />;
+  if (loadError)
+    return (
+      <main className="mx-auto max-w-sm px-5 py-16 text-center">
+        <p className="text-sm font-semibold text-destructive" role="alert">{loadError}</p>
+        <Button type="button" className="mt-4" onClick={() => void load()}>Retry</Button>
+      </main>
+    );
+  if (!session || data === undefined)
+    return <main className="grid min-h-screen place-items-center text-sm font-semibold text-muted-foreground">…</main>;
+  if (data === null || reimport)
+    return (
+      <LadokImport
+        lang={lang}
+        defaultName={data?.profile.display_name ?? ""}
+        onDone={() => {
+          setReimport(false);
+          void load();
+        }}
+        onCancel={data ? () => setReimport(false) : undefined}
+      />
+    );
+
+  return (
+    <Dashboard
+      view={buildStudentView(data.profile, data.courses, session.user.email ?? "", new Date().toISOString().slice(0, 10))}
+      lang={lang}
+      setLang={setLang}
+      onReimport={() => setReimport(true)}
+      onSignOut={() => void supabase.auth.signOut()}
+    />
+  );
+}
+
+function Dashboard({
+  view,
+  lang,
+  setLang,
+  onReimport,
+  onSignOut,
+}: {
+  view: StudentView;
+  lang: Lang;
+  setLang: React.Dispatch<React.SetStateAction<Lang>>;
+  onReimport: () => void;
+  onSignOut: () => void;
+}) {
+  const { student, progress } = view;
   const daysLeft = daysUntil(nextDeadline.iso);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notes, setNotes] = useState(notifications);
-  const [lang, setLang] = useState<Lang>("en");
   const nc = newsCopy[lang];
   const [notifPrefs, setNotifPrefs] = useState<Record<NotificationPrefKey, boolean>>(defaultNotificationPrefs);
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -710,7 +606,10 @@ function Index() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-28 text-foreground">
+    <div
+      className="min-h-screen bg-background pb-28 text-foreground"
+      style={{ "--progress": `${progress.progressPercent}%` } as React.CSSProperties}
+    >
       <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 md:px-8">
           <button
@@ -922,6 +821,7 @@ function Index() {
 
         {tab === "progress" && (
           <ProgressScreen
+            view={view}
             lang={lang}
             t={t}
             periodFilter={periodFilter}
@@ -994,7 +894,7 @@ function Index() {
               </span>
             </div>
             <ul className="divide-y divide-border">
-              {recentGrades.map((grade) => (
+              {view.recentGrades.map((grade) => (
                 <GradeRow key={grade.code} grade={grade} resultText={t.resultLabel(grade.date)} />
               ))}
             </ul>
@@ -1199,7 +1099,16 @@ function Index() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => go("dashboard")}
+              onClick={onReimport}
+              className="mt-4 h-11 w-full gap-2 rounded-xl md:w-auto md:min-w-44"
+            >
+              <FileUp className="size-4" aria-hidden="true" />
+              {t.updateFromLadok}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onSignOut}
               className="mt-4 h-11 w-full gap-2 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive md:ml-auto md:flex md:w-auto md:min-w-44"
             >
               <LogOut className="size-4" aria-hidden="true" />
@@ -1248,6 +1157,7 @@ function Index() {
 type ProgressCopy = (typeof ui)[Lang];
 
 function ProgressScreen({
+  view,
   lang,
   t,
   periodFilter,
@@ -1261,6 +1171,7 @@ function ProgressScreen({
   selectedGrade,
   setSelectedGrade,
 }: {
+  view: StudentView;
   lang: Lang;
   t: ProgressCopy;
   periodFilter: string;
@@ -1279,23 +1190,18 @@ function ProgressScreen({
   const [showFilters, setShowFilters] = useState(false);
   const [ectsGrouping, setEctsGrouping] = useState<ProgressGrouping>("period");
 
-  const semesterName = (semester: string) => {
-    if (semester === "Spring 2026") return t.spring2026;
-    if (semester === "Autumn 2025") return t.autumn2025;
-    return semester;
-  };
+  const { progress, completedCourses, ectsByPeriod, gradeTrend } = view;
+  const semesterName = (semester: string) =>
+    lang === "sv" ? semester.replace("Autumn", "Höst").replace("Spring", "Vår") : semester;
+  const inScope = (item: { period: string; semester: string; academicYear: string }) =>
+    (periodFilter === "all" || item.period === periodFilter) &&
+    (semesterFilter === "all" || item.semester === semesterFilter) &&
+    (yearFilter === "all" || item.academicYear === yearFilter);
 
-  const visiblePeriods = ectsByPeriod.filter(
-    (item) =>
-      (periodFilter === "all" || item.period === periodFilter) &&
-      (semesterFilter === "all" || item.semester === semesterFilter) &&
-      (yearFilter === "all" || yearFilter === "2025–26"),
-  );
+  const visiblePeriods = ectsByPeriod.filter(inScope);
 
   const ectsChart = (() => {
-    if (ectsGrouping === "period") {
-      return visiblePeriods.map((item) => ({ ...item, label: item.period }));
-    }
+    if (ectsGrouping === "period") return visiblePeriods;
     if (ectsGrouping === "semester") {
       const semesters = [...new Set(visiblePeriods.map((item) => item.semester))];
       return semesters.map((semester) => ({
@@ -1308,25 +1214,20 @@ function ProgressScreen({
           .reduce((total, item) => total + item.expected, 0),
       }));
     }
-    return visiblePeriods.length
-      ? [
-          {
-            label: "2025–26",
-            earned: visiblePeriods.reduce((total, item) => total + item.earned, 0),
-            expected: visiblePeriods.reduce((total, item) => total + item.expected, 0),
-          },
-        ]
-      : [];
+    const years = [...new Set(visiblePeriods.map((item) => item.academicYear))];
+    return years.map((year) => {
+      const items = visiblePeriods.filter((item) => item.academicYear === year);
+      return {
+        label: year,
+        earned: items.reduce((total, item) => total + item.earned, 0),
+        expected: items.reduce((total, item) => total + item.expected, 0),
+      };
+    });
   })();
 
-  const filteredTrend = gradeTrend.filter(
-    (item) =>
-      (periodFilter === "all" || item.period === periodFilter) &&
-      (semesterFilter === "all" || item.semester === semesterFilter) &&
-      (yearFilter === "all" || yearFilter === "2025–26"),
-  );
+  const filteredTrend = gradeTrend.filter(inScope);
   const trendChart = (() => {
-    if (grouping === "period") return filteredTrend.map((item) => ({ ...item, label: item.period }));
+    if (grouping === "period") return filteredTrend;
     if (grouping === "semester") {
       const semesters = [...new Set(filteredTrend.map((item) => item.semester))];
       return semesters.map((semester) => {
@@ -1337,14 +1238,11 @@ function ProgressScreen({
         };
       });
     }
-    return filteredTrend.length
-      ? [
-          {
-            label: "2025–26",
-            value: filteredTrend.reduce((total, item) => total + item.value, 0) / filteredTrend.length,
-          },
-        ]
-      : [];
+    const years = [...new Set(filteredTrend.map((item) => item.academicYear))];
+    return years.map((year) => {
+      const items = filteredTrend.filter((item) => item.academicYear === year);
+      return { label: year, value: items.reduce((total, item) => total + item.value, 0) / items.length };
+    });
   })();
 
   const scopeCourses = completedCourses.filter(
@@ -1371,25 +1269,10 @@ function ProgressScreen({
     : gradeFilteredCourses;
   const courseGroups = [...new Set(visibleCourses.map((course) => course.semester))].map((semester) => {
     const courses = visibleCourses.filter((course) => course.semester === semester);
-    const average = courses.length
-      ? (
-          courses.reduce(
-            (total, course) => total + ({ A: 5, B: 4, C: 3, D: 2, E: 1, Fail: 0 }[course.grade]),
-            0,
-          ) / courses.length
-        ).toFixed(1)
-      : "—";
-    return { semester, courses, average };
+    return { semester, courses, average: averageGrade(courses) };
   });
-  const grades: Grade[] = ["A", "B", "C", "D", "E", "Fail"];
-  const averageGrade = scopeCourses.length
-    ? (
-        scopeCourses.reduce(
-          (total, course) => total + ({ A: 5, B: 4, C: 3, D: 2, E: 1, Fail: 0 }[course.grade]),
-          0,
-        ) / scopeCourses.length
-      ).toFixed(1)
-    : "—";
+  const grades: Grade[] = ["A", "B", "C", "D", "E", "Fail", ...(scopeCourses.some((c) => c.grade === "P") ? (["P"] as const) : [])];
+  const scopeAverage = averageGrade(scopeCourses);
 
   return (
     <div className="space-y-3 md:space-y-4">
@@ -1453,7 +1336,7 @@ function ProgressScreen({
               ["year", t.academicYears],
             ]}
           />
-          <GradeTrendChart data={trendChart} average={averageGrade} label={t.averageGrade} />
+          <GradeTrendChart data={trendChart} average={scopeAverage} label={t.averageGrade} />
         </ProgressCard>
       </div>
 
@@ -1550,8 +1433,7 @@ function ProgressScreen({
             onChange={setSemesterFilter}
             options={[
               ["all", t.allSemesters],
-              ["Autumn 2025", t.autumn2025],
-              ["Spring 2026", t.spring2026],
+              ...view.semesters.map((s): [string, string] => [s, semesterName(s)]),
             ]}
           />
           <FilterSelect
@@ -1560,7 +1442,7 @@ function ProgressScreen({
             onChange={setYearFilter}
             options={[
               ["all", t.allYears],
-              ["2025–26", "2025–26"],
+              ...view.academicYears.map((y): [string, string] => [y, y]),
             ]}
           />
           </div>
@@ -1828,7 +1710,7 @@ function GradeTrendChart({ data, average, label }: { data: Array<{ label: string
   );
 }
 
-function PassedCourseRow({ course, t, semester }: { course: (typeof completedCourses)[number]; t: ProgressCopy; semester: string }) {
+function PassedCourseRow({ course, t, semester }: { course: CompletedCourse; t: ProgressCopy; semester: string }) {
   const failed = course.grade === "Fail";
   return (
     <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border py-2.5 last:border-b-0">
@@ -1907,7 +1789,7 @@ function PlanScreen({ lang, t }: { lang: Lang; t: ProgressCopy }) {
     <section id="courses" className="card-enter scroll-mt-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="section-label">{student.programmeCode}</p>
+          <p className="section-label">TTBEM</p>
           <h1 className="mt-1 font-display text-2xl font-bold md:text-3xl">{t.planTitle}</h1>
           <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">{t.planIntro}</p>
         </div>
@@ -2028,7 +1910,7 @@ function GradeRow({
   grade,
   resultText,
 }: {
-  grade: (typeof recentGrades)[number];
+  grade: StudentView["recentGrades"][number];
   resultText: string;
 }) {
   const failed = grade.grade === "Fail";
