@@ -40,9 +40,26 @@ const NUM = String.raw`\d+(?:\.\d+)?`;
 
 const lines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean);
 
+/** `code` tells the upload screen which Ladok setting the student has to change. */
+export class LadokError extends Error {
+  constructor(
+    readonly code: "swedish" | "wrong_document" | "unreadable",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+// shortcut: Swedish detected by header words only; parse Swedish PDFs if students keep picking it
+function checkDocument(text: string, title: string) {
+  if (/Utskriftsdatum|Resultatintyg|Registreringsintyg/.test(text))
+    throw new LadokError("swedish", "The PDF is in Swedish; create it again with language English");
+  if (!text.includes(title)) throw new LadokError("wrong_document", `Not a Ladok "${title}" PDF`);
+}
+
 function field(text: string, re: RegExp, what: string): string {
   const m = text.match(re);
-  if (!m?.[1]) throw new Error(`Ladok PDF: could not find ${what}`);
+  if (!m?.[1]) throw new LadokError("unreadable", `Ladok PDF: could not find ${what}`);
   return m[1];
 }
 
@@ -50,7 +67,7 @@ const printDate = (text: string) => field(text, new RegExp(`Print date\\s*\\n(${
 const controlCode = (text: string) => field(text, /control code:\s*([A-Z0-9]+)/i, "control code");
 
 export function parseTranscript(text: string): Transcript {
-  if (!text.includes("Transcript of Records")) throw new Error("Not an English Ladok transcript of records");
+  checkDocument(text, "Transcript of Records");
 
   const row = new RegExp(`^(.*?)\\s*(${NUM}) hp (A|B|C|D|E|FX|F|P) (${DATE})(?: \\d+)?$`);
   const partHeader = new RegExp(`^(.*?)\\s*\\((${NUM}) hp\\)$`);
@@ -80,7 +97,7 @@ export function parseTranscript(text: string): Transcript {
       if (section === "completed") courses.push(entry);
       else {
         const parent = partial.at(-1);
-        if (!parent) throw new Error("Ladok PDF: course part without a course");
+        if (!parent) throw new LadokError("unreadable", "Ladok PDF: course part without a course");
         parent.parts.push(entry);
       }
     }
@@ -96,7 +113,7 @@ export function parseTranscript(text: string): Transcript {
 }
 
 export function parseRegistration(text: string): Registration {
-  if (!text.includes("Certificate of Registration")) throw new Error("Not an English Ladok certificate of registration");
+  checkDocument(text, "Certificate of Registration");
 
   const prog = text.match(
     new RegExp(`\\n([A-Z]{4,6}) ([^(]+?) \\((${NUM}) hp\\)\\s*\\nStudy period: (${DATE}) - (${DATE})`),

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mergeLadok, parseRegistration, parseTranscript } from "./ladok";
+import { LadokError, mergeLadok, parseRegistration, parseTranscript } from "./ladok";
 
 // Fake student; layout copied from real KTH/Ladok PDF text as extracted by unpdf.
 const transcript = `Official Transcript of Records Print date
@@ -115,7 +115,17 @@ test("merges grades with codes and derives status", () => {
   expect(byName["Transferred Course"]).toMatchObject({ code: null, status: "completed" });
 });
 
-test("rejects other documents", () => {
-  expect(() => parseTranscript(registration)).toThrow();
-  expect(() => parseRegistration(transcript)).toThrow();
+const errorCode = (fn: () => unknown) => {
+  try {
+    fn();
+  } catch (e) {
+    return e instanceof LadokError ? e.code : "other";
+  }
+  return "none";
+};
+
+test("tells the student which Ladok setting is wrong", () => {
+  expect(errorCode(() => parseTranscript(registration))).toBe("wrong_document");
+  expect(errorCode(() => parseRegistration(transcript))).toBe("wrong_document");
+  expect(errorCode(() => parseTranscript("Officiellt resultatintyg Utskriftsdatum\n2026-11-16"))).toBe("swedish");
 });
