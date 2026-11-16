@@ -19,7 +19,8 @@ type Kind = "transcript" | "registration";
 const copy = {
   en: {
     title: "Import your studies from Ladok",
-    intro: "Download two PDFs from Ladok and add them here. They are read on this device and never uploaded; we only save your courses, grades and credits.",
+    intro:
+      "Download two PDFs from Ladok and add them here. They are read on this device and never uploaded; we only save your courses, grades and credits.",
     open: "Open Ladok",
     where: "In Ladok: Transcripts and certificates → Create",
     transcript: {
@@ -49,15 +50,21 @@ const copy = {
     summary: (programme: string, hp: number, total: number) => `${programme}: ${hp} of ${total} hp`,
     errors: {
       swedish: "This PDF is in Swedish. Create it again in Ladok with Language: English.",
-      wrong_document: { transcript: "This isn't an Official transcript of records.", registration: "This isn't a Certificate of Registration." },
-      missing_codes: "Course codes are missing. Tick “Codes for courses, programmes, etc.” in Ladok.",
-      no_programme: "No programme found. Choose “All registrations arranged by programme” in Ladok.",
+      wrong_document: {
+        transcript: "This isn't an Official transcript of records.",
+        registration: "This isn't a Certificate of Registration.",
+      },
+      missing_codes:
+        "Course codes are missing. Tick “Codes for courses, programmes, etc.” in Ladok.",
+      no_programme:
+        "No programme found. Choose “All registrations arranged by programme” in Ladok.",
       unreadable: "We couldn't read this PDF. Use the original PDF downloaded from Ladok.",
     },
   },
   sv: {
     title: "Importera dina studier från Ladok",
-    intro: "Ladda ner två PDF:er från Ladok och lägg till dem här. De läses på den här enheten och laddas aldrig upp; vi sparar bara kurser, betyg och poäng.",
+    intro:
+      "Ladda ner två PDF:er från Ladok och lägg till dem här. De läses på den här enheten och laddas aldrig upp; vi sparar bara kurser, betyg och poäng.",
     open: "Öppna Ladok",
     where: "I Ladok: Intyg → Skapa",
     transcript: {
@@ -87,9 +94,13 @@ const copy = {
     summary: (programme: string, hp: number, total: number) => `${programme}: ${hp} av ${total} hp`,
     errors: {
       swedish: "PDF:en är på svenska. Skapa den igen i Ladok med Språk: Engelska.",
-      wrong_document: { transcript: "Det här är inte ett officiellt resultatintyg.", registration: "Det här är inte ett registreringsintyg." },
+      wrong_document: {
+        transcript: "Det här är inte ett officiellt resultatintyg.",
+        registration: "Det här är inte ett registreringsintyg.",
+      },
       missing_codes: "Kurskoder saknas. Kryssa i ”Koder för kurser, program m.m.” i Ladok.",
-      no_programme: "Inget program hittades. Välj ”Alla registreringar ordnade efter program” i Ladok.",
+      no_programme:
+        "Inget program hittades. Välj ”Alla registreringar ordnade efter program” i Ladok.",
       unreadable: "Vi kunde inte läsa PDF:en. Använd original-PDF:en från Ladok.",
     },
   },
@@ -145,7 +156,10 @@ export function LadokImport({
     }
   }
 
-  const merged = transcript && registration ? mergeLadok(transcript, registration, new Date().toISOString().slice(0, 10)) : null;
+  const merged =
+    transcript && registration
+      ? mergeLadok(transcript, registration, new Date().toISOString().slice(0, 10))
+      : null;
   const earned = merged ? Math.round(merged.reduce((s, c) => s + c.earnedCredits, 0) * 10) / 10 : 0;
 
   async function save() {
@@ -196,7 +210,10 @@ export function LadokImport({
         </p>
       )}
       {errors[kind] && (
-        <p className="mt-2 flex items-start gap-2 text-sm font-semibold text-destructive" role="alert">
+        <p
+          className="mt-2 flex items-start gap-2 text-sm font-semibold text-destructive"
+          role="alert"
+        >
           <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           {errors[kind]}
         </p>
@@ -247,7 +264,13 @@ export function LadokImport({
               {saveError}
             </p>
           )}
-          <Button type="button" variant="secondary" className="h-11 w-full" disabled={saving} onClick={() => void save()}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-11 w-full"
+            disabled={saving}
+            onClick={() => void save()}
+          >
             {saving ? t.saving : t.save}
           </Button>
         </section>

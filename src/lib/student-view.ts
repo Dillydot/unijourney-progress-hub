@@ -69,10 +69,19 @@ const periodStarts = [
 ] as const;
 
 const fmtDate = (iso: string) =>
-  new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 const fmtNum = (n: number) => String(Math.round(n * 10) / 10);
 
-export function buildStudentView(profile: ProfileRow, courses: CourseRow[], email: string, today: string) {
+export function buildStudentView(
+  profile: ProfileRow,
+  courses: CourseRow[],
+  email: string,
+  today: string,
+) {
   const completed = courses.filter((c) => c.status === "completed" && c.grade);
   const toGrade = (g: LadokGrade): Grade => (g === "F" || g === "FX" ? "Fail" : g);
 
@@ -95,26 +104,45 @@ export function buildStudentView(profile: ProfileRow, courses: CourseRow[], emai
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
   // One slot per study period from programme start until now, so empty periods show as 0.
-  const firstYear = kthSlot(profile.programme_start ?? completedCourses[0]?.sortKey ?? today).academicYear;
+  const firstYear = kthSlot(
+    profile.programme_start ?? completedCourses[0]?.sortKey ?? today,
+  ).academicYear;
   const lastYear = kthSlot(today).academicYear;
-  const slots: Array<{ period: string; semester: string; academicYear: string; label: string }> = [];
+  const slots: Array<{ period: string; semester: string; academicYear: string; label: string }> =
+    [];
   for (let y = Number(firstYear.slice(0, 4)); y <= Number(lastYear.slice(0, 4)); y++) {
     for (const [i, [dy, m, d]] of periodStarts.entries()) {
       const start = `${y + dy}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       if (start > today) continue;
-      const slot = kthSlot(i === 0 ? `${y}-09-01` : i === 1 ? `${y}-12-01` : i === 2 ? `${y + 1}-02-01` : `${y + 1}-05-01`);
-      slots.push({ ...slot, label: `${slot.period} ${slot.academicYear.slice(2).replace("–", "/")}` });
+      const slot = kthSlot(
+        i === 0
+          ? `${y}-09-01`
+          : i === 1
+            ? `${y}-12-01`
+            : i === 2
+              ? `${y + 1}-02-01`
+              : `${y + 1}-05-01`,
+      );
+      slots.push({
+        ...slot,
+        label: `${slot.period} ${slot.academicYear.slice(2).replace("–", "/")}`,
+      });
     }
   }
-  const sameSlot = (a: { period: string; academicYear: string }, b: { period: string; academicYear: string }) =>
-    a.period === b.period && a.academicYear === b.academicYear;
+  const sameSlot = (
+    a: { period: string; academicYear: string },
+    b: { period: string; academicYear: string },
+  ) => a.period === b.period && a.academicYear === b.academicYear;
 
   const ectsByPeriod = slots.map((s) => ({
     ...s,
     earned: Number(
       fmtNum(
         courses
-          .filter((c) => c.earned_credits > 0 && sameSlot(kthSlot(c.end_date ?? c.grade_date ?? today), s))
+          .filter(
+            (c) =>
+              c.earned_credits > 0 && sameSlot(kthSlot(c.end_date ?? c.grade_date ?? today), s),
+          )
           .reduce((sum, c) => sum + c.earned_credits, 0),
       ),
     ),
@@ -123,7 +151,9 @@ export function buildStudentView(profile: ProfileRow, courses: CourseRow[], emai
 
   const gradeTrend = slots
     .map((s) => {
-      const avg = averageGrade(completedCourses.filter((c) => sameSlot({ ...c, period: `P${c.period}` }, s)));
+      const avg = averageGrade(
+        completedCourses.filter((c) => sameSlot({ ...c, period: `P${c.period}` }, s)),
+      );
       return { ...s, value: avg === "—" ? null : Number(avg) };
     })
     .filter((s): s is typeof s & { value: number } => s.value !== null);
@@ -136,14 +166,21 @@ export function buildStudentView(profile: ProfileRow, courses: CourseRow[], emai
   const fullName = profile.display_name?.trim() || localPart;
   const [firstName = fullName, ...rest] = fullName.split(" ");
   const start = profile.programme_start;
-  const yearsIn = start ? Math.floor((Date.parse(today) - Date.parse(start)) / (365.25 * 864e5)) + 1 : 1;
+  const yearsIn = start
+    ? Math.floor((Date.parse(today) - Date.parse(start)) / (365.25 * 864e5)) + 1
+    : 1;
 
   return {
     student: {
       firstName,
       lastName: rest.join(" "),
       fullName,
-      initials: fullName.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase(),
+      initials: fullName
+        .split(" ")
+        .map((p) => p[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
       studentId: email.endsWith("kth.se") ? localPart : "—",
       email,
       university: "KTH Royal Institute of Technology",
@@ -168,7 +205,13 @@ export function buildStudentView(profile: ProfileRow, courses: CourseRow[], emai
     recentGrades: [...completedCourses]
       .reverse()
       .slice(0, 3)
-      .map((c) => ({ name: c.name, code: c.code, grade: c.grade, credits: `${c.credits} ECTS`, date: c.completed })),
+      .map((c) => ({
+        name: c.name,
+        code: c.code,
+        grade: c.grade,
+        credits: `${c.credits} ECTS`,
+        date: c.completed,
+      })),
     ectsByPeriod,
     gradeTrend,
     semesters: [...new Set(slots.map((s) => s.semester))],

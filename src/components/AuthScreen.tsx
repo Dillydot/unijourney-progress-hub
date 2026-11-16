@@ -54,10 +54,18 @@ export function AuthScreen({ lang }: { lang: "en" | "sv" }) {
       <p className="mt-2 text-sm text-muted-foreground">{t.intro}</p>
 
       {state === "sent" ? (
-        <div className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card" role="status">
+        <div
+          className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card"
+          role="status"
+        >
           <Mail className="size-5 text-primary" aria-hidden="true" />
           <p className="mt-2 text-sm font-semibold">{t.sent(email.trim())}</p>
-          <Button type="button" variant="ghost" className="mt-3 px-0" onClick={() => setState("idle")}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="mt-3 px-0"
+            onClick={() => setState("idle")}
+          >
             {t.other}
           </Button>
         </div>
