@@ -72,11 +72,12 @@ test("parses transcript, including wrapped names", () => {
   ]);
   expect(t.partial).toEqual([
     {
+      code: null,
       name: "Research Methods in Industrial Engineering and Management",
       credits: 7.5,
       parts: [
-        { name: "Assignment", credits: 1, grade: "P", date: "2026-09-04" },
-        { name: "Assignments", credits: 1, grade: "P", date: "2026-09-18" },
+        { code: null, name: "Assignment", credits: 1, grade: "P", date: "2026-09-04" },
+        { code: null, name: "Assignments", credits: 1, grade: "P", date: "2026-09-18" },
       ],
     },
   ]);
@@ -113,6 +114,44 @@ test("merges grades with codes and derives status", () => {
   expect(merged.reduce((s, c) => s + c.earnedCredits, 0)).toBe(20.5);
   expect(byName["Luxury Strategy and Business Reality"]?.status).toBe("awaiting_result");
   expect(byName["Transferred Course"]).toMatchObject({ code: null, status: "completed" });
+});
+
+// Same student, transcript created with "Codes" ticked. Names differ from the registration
+// on purpose: with codes the join must not depend on names.
+const transcriptWithCodes = `Official Transcript of Records Print date
+2026-11-16
+Completed courses
+Code Name Scope Grade Date Note
+ME2620 Tech-based Entrepreneurship (renamed) 7.5 hp B 2025-10-09 1
+ME2999 A Very Long Course Name That Wraps Onto
+Two Lines 6.0 hp A 2026-06-05 1
+Parts of uncompleted courses
+Code Name Scope Grade Date Note
+ME2003 Research Methods in Industrial Engineering
+and Management
+(7.5 hp)
+INL1 Assignment 1.0 hp P 2026-09-04 2
+INL2 Assignments 1.0 hp P 2026-09-18 2
+Summation
+Total included credited parts Credited education
+15.5 hp
+Verifiable until: 2027-02-14 Control code: ZZZ999AAA1`;
+
+test("transcript with codes: splits codes off and joins on them", () => {
+  const t = parseTranscript(transcriptWithCodes);
+  expect(t.courses.map((c) => [c.code, c.name])).toEqual([
+    ["ME2620", "Tech-based Entrepreneurship (renamed)"],
+    ["ME2999", "A Very Long Course Name That Wraps Onto Two Lines"],
+  ]);
+  expect(t.partial[0]).toMatchObject({ code: "ME2003", name: "Research Methods in Industrial Engineering and Management" });
+  expect(t.partial[0]?.parts.map((p) => p.code)).toEqual(["INL1", "INL2"]);
+
+  const merged = mergeLadok(t, parseRegistration(registration), "2026-11-16");
+  const byCode = Object.fromEntries(merged.map((c) => [c.code, c]));
+  expect(byCode["ME2620"]).toMatchObject({ name: "Technology-based Entrepreneurship", grade: "B", status: "completed" });
+  expect(byCode["ME2003"]).toMatchObject({ earnedCredits: 2, status: "ongoing" });
+  expect(merged).toHaveLength(4); // nothing left unmatched
+  expect(merged.reduce((s, c) => s + c.earnedCredits, 0)).toBe(t.totalCredits);
 });
 
 const errorCode = (fn: () => unknown) => {

@@ -3,7 +3,8 @@
 
 export type LadokGrade = "A" | "B" | "C" | "D" | "E" | "FX" | "F" | "P";
 
-export type TranscriptCourse = { name: string; credits: number; grade: LadokGrade; date: string };
+/** `code` is set when the transcript was created with "Codes" ticked (module code for parts, e.g. INL1). */
+export type TranscriptCourse = { code: string | null; name: string; credits: number; grade: LadokGrade; date: string };
 export type Transcript = {
   printDate: string;
   controlCode: string;
@@ -12,7 +13,7 @@ export type Transcript = {
   /** "Parts of uncompleted courses": modules already passed in courses not yet finished. */
   partial: PartialCourse[];
 };
-export type PartialCourse = { name: string; credits: number; parts: TranscriptCourse[] };
+export type PartialCourse = { code: string | null; name: string; credits: number; parts: TranscriptCourse[] };
 
 export type RegisteredCourse = { code: string; name: string; credits: number; start: string; end: string };
 export type Registration = {
@@ -75,15 +76,21 @@ export function parseTranscript(text: string): Transcript {
   const partial: PartialCourse[] = [];
   let section: "completed" | "partial" | null = null;
   let pendingName = ""; // long names can wrap onto several lines before the row's tail
+  const hasCodes = /^Code Name Scope Grade/m.test(text);
+  // With "Codes" ticked the first word of every row is the course or module code.
+  const split = (full: string) => {
+    const [first = "", ...rest] = full.trim().split(" ");
+    return hasCodes ? { code: first, name: rest.join(" ") } : { code: null, name: full.trim() };
+  };
 
   for (const line of lines(text)) {
     if (line === "Completed courses") section = "completed";
     else if (line === "Parts of uncompleted courses") section = "partial";
     else if (line === "Summation") section = null;
-    else if (section && !line.startsWith("Name Scope Grade")) {
+    else if (section && !/^(Code )?Name Scope Grade/.test(line)) {
       const h = section === "partial" ? line.match(partHeader) : null;
       if (h) {
-        partial.push({ name: (pendingName + h[1]).trim(), credits: Number(h[2]), parts: [] });
+        partial.push({ ...split(pendingName + h[1]), credits: Number(h[2]), parts: [] });
         pendingName = "";
         continue;
       }
@@ -92,7 +99,7 @@ export function parseTranscript(text: string): Transcript {
         pendingName += `${line} `;
         continue;
       }
-      const entry = { name: (pendingName + m[1]).trim(), credits: Number(m[2]), grade: m[3] as LadokGrade, date: m[4]! };
+      const entry = { ...split(pendingName + m[1]), credits: Number(m[2]), grade: m[3] as LadokGrade, date: m[4]! };
       pendingName = "";
       if (section === "completed") courses.push(entry);
       else {
@@ -149,16 +156,27 @@ export function parseRegistration(text: string): Registration {
 }
 
 const key = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
+// Match on course code when the transcript has codes, otherwise on the (English) name.
+const id = (c: { code: string | null; name: string }) => c.code ?? key(c.name);
+function take<T>(map: Map<string, T>, r: RegisteredCourse): T | undefined {
+  for (const k of [r.code, key(r.name)]) {
+    const found = map.get(k);
+    if (found !== undefined) {
+      map.delete(k);
+      return found;
+    }
+  }
+  return undefined;
+}
 
 /** Joins both certificates: the transcript has grades, the registration has codes and periods. */
 export function mergeLadok(transcript: Transcript, registration: Registration, today: string): StudentCourse[] {
-  const graded = new Map(transcript.courses.map((c) => [key(c.name), c]));
+  const graded = new Map(transcript.courses.map((c) => [id(c), c]));
   const partEarned = new Map(
-    transcript.partial.map((p) => [key(p.name), p.parts.reduce((sum, part) => sum + part.credits, 0)]),
+    transcript.partial.map((p) => [id(p), p.parts.reduce((sum, part) => sum + part.credits, 0)]),
   );
   const result: StudentCourse[] = registration.courses.map((r) => {
-    const g = graded.get(key(r.name));
-    graded.delete(key(r.name));
+    const g = take(graded, r);
     return {
       code: r.code,
       name: r.name,
@@ -167,14 +185,14 @@ export function mergeLadok(transcript: Transcript, registration: Registration, t
       end: r.end,
       grade: g?.grade ?? null,
       gradeDate: g?.date ?? null,
-      earnedCredits: g ? r.credits : (partEarned.get(key(r.name)) ?? 0),
+      earnedCredits: g ? r.credits : (take(partEarned, r) ?? 0),
       status: g ? "completed" : r.end >= today ? "ongoing" : "awaiting_result",
     };
   });
   // Graded courses missing from the registration (e.g. credit transfers) still count.
   for (const g of graded.values())
     result.push({
-      code: null,
+      code: g.code,
       name: g.name,
       credits: g.credits,
       start: null,
