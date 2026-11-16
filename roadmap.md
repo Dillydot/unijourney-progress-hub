@@ -1,0 +1,25 @@
+# Roadmap
+
+- [x] Build detailed bilingual Progress screen
+- [x] Add responsive progress and grade visuals
+- [x] Add period filters and grade course drill-down
+- [x] Verify mobile, desktop, interactions, and preview health
+- [x] Add hover and keyboard details to both progress graphs
+- [x] Research the official TTBEM study plan and uploaded programme syllabus
+- [x] Build the Plan screen with year, semester, period, and course-type controls
+- [x] Add official course links, dates, credits, and teaching contacts
+- [x] Verify the Plan screen on mobile and desktop in English and Swedish
+- [x] Make Plan course cards compact so the student scrolls less
+- [x] Improve completed-course rows and filters for mobile readability
+- [x] Adapt the Progress screen to the supplied compact mobile reference
+- [x] Move the language switch from the header to the Profile screen
+- [x] Add a logout action at the bottom of the Profile screen
+- [x] Remove the course-update note from notifications
+- [x] Add registration deadline notifications linking to universityadmissions.se and ladok.se
+- [x] Add a mark-all-as-read control to the notifications panel
+- [x] Move the ECTS and grade-development charts above the completed-course tables on Progress
+- [x] Add the Study periods / Semesters / Academic years filter to the ECTS Progress card
+- [x] Remove the Notify me about card from the News screen
+- [x] Point the News intro to the Profile notification settings
+- [x] Compact the dashboard cards so more fits on one screen
+- [x] Shrink cards and spacing across Progress, Plan, Calendar, News and Profile
