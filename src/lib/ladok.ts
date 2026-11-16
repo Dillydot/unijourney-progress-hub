@@ -9,7 +9,10 @@ export type Transcript = {
   controlCode: string;
   totalCredits: number;
   courses: TranscriptCourse[];
+  /** "Parts of uncompleted courses": modules already passed in courses not yet finished. */
+  partial: PartialCourse[];
 };
+export type PartialCourse = { name: string; credits: number; parts: TranscriptCourse[] };
 
 export type RegisteredCourse = { code: string; name: string; credits: number; start: string; end: string };
 export type Registration = {
@@ -27,6 +30,8 @@ export type StudentCourse = {
   end: string | null;
   grade: LadokGrade | null;
   gradeDate: string | null;
+  /** Credits already earned: all of them when completed, passed parts otherwise. */
+  earnedCredits: number;
   status: "completed" | "ongoing" | "awaiting_result";
 };
 
@@ -48,26 +53,36 @@ export function parseTranscript(text: string): Transcript {
   if (!text.includes("Transcript of Records")) throw new Error("Not an English Ladok transcript of records");
 
   const row = new RegExp(`^(.*?)\\s*(${NUM}) hp (A|B|C|D|E|FX|F|P) (${DATE})(?: \\d+)?$`);
+  const partHeader = new RegExp(`^(.*?)\\s*\\((${NUM}) hp\\)$`);
   const courses: TranscriptCourse[] = [];
-  let inSection = false;
+  const partial: PartialCourse[] = [];
+  let section: "completed" | "partial" | null = null;
   let pendingName = ""; // long names can wrap onto several lines before the row's tail
 
   for (const line of lines(text)) {
-    if (line === "Completed courses") inSection = true;
-    else if (line === "Summation") inSection = false;
-    else if (inSection && !line.startsWith("Name Scope Grade")) {
+    if (line === "Completed courses") section = "completed";
+    else if (line === "Parts of uncompleted courses") section = "partial";
+    else if (line === "Summation") section = null;
+    else if (section && !line.startsWith("Name Scope Grade")) {
+      const h = section === "partial" ? line.match(partHeader) : null;
+      if (h) {
+        partial.push({ name: (pendingName + h[1]).trim(), credits: Number(h[2]), parts: [] });
+        pendingName = "";
+        continue;
+      }
       const m = line.match(row);
       if (!m) {
         pendingName += `${line} `;
         continue;
       }
-      courses.push({
-        name: (pendingName + m[1]).trim(),
-        credits: Number(m[2]),
-        grade: m[3] as LadokGrade,
-        date: m[4]!,
-      });
+      const entry = { name: (pendingName + m[1]).trim(), credits: Number(m[2]), grade: m[3] as LadokGrade, date: m[4]! };
       pendingName = "";
+      if (section === "completed") courses.push(entry);
+      else {
+        const parent = partial.at(-1);
+        if (!parent) throw new Error("Ladok PDF: course part without a course");
+        parent.parts.push(entry);
+      }
     }
   }
 
@@ -76,6 +91,7 @@ export function parseTranscript(text: string): Transcript {
     controlCode: controlCode(text),
     totalCredits: Number(field(text, new RegExp(`Credited education\\s*\\n(${NUM}) hp`), "total credits")),
     courses,
+    partial,
   };
 }
 
@@ -117,6 +133,9 @@ const key = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 /** Joins both certificates: the transcript has grades, the registration has codes and periods. */
 export function mergeLadok(transcript: Transcript, registration: Registration, today: string): StudentCourse[] {
   const graded = new Map(transcript.courses.map((c) => [key(c.name), c]));
+  const partEarned = new Map(
+    transcript.partial.map((p) => [key(p.name), p.parts.reduce((sum, part) => sum + part.credits, 0)]),
+  );
   const result: StudentCourse[] = registration.courses.map((r) => {
     const g = graded.get(key(r.name));
     graded.delete(key(r.name));
@@ -128,12 +147,23 @@ export function mergeLadok(transcript: Transcript, registration: Registration, t
       end: r.end,
       grade: g?.grade ?? null,
       gradeDate: g?.date ?? null,
+      earnedCredits: g ? r.credits : (partEarned.get(key(r.name)) ?? 0),
       status: g ? "completed" : r.end >= today ? "ongoing" : "awaiting_result",
     };
   });
   // Graded courses missing from the registration (e.g. credit transfers) still count.
   for (const g of graded.values())
-    result.push({ code: null, name: g.name, credits: g.credits, start: null, end: null, grade: g.grade, gradeDate: g.date, status: "completed" });
+    result.push({
+      code: null,
+      name: g.name,
+      credits: g.credits,
+      start: null,
+      end: null,
+      grade: g.grade,
+      gradeDate: g.date,
+      earnedCredits: g.credits,
+      status: "completed",
+    });
 
   return result.sort((a, b) => (a.start ?? a.gradeDate ?? "").localeCompare(b.start ?? b.gradeDate ?? ""));
 }
