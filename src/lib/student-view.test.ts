@@ -10,8 +10,15 @@ test("maps course end dates to KTH study periods", () => {
 });
 
 test("average ignores pass/fail courses", () => {
-  expect(averageGrade([{ grade: "A" }, { grade: "C" }, { grade: "P" }])).toBe("4.0");
-  expect(averageGrade([{ grade: "P" }])).toBe("—");
+  const mix = [
+    { grade: "A", credits: 7.5 },
+    { grade: "C", credits: 1.5 },
+    { grade: "P", credits: 15 },
+  ] as const;
+  expect(averageGrade([...mix])).toBe("4.0");
+  // (5·7.5 + 3·1.5) / 9 = 4.67
+  expect(averageGrade([...mix], true)).toBe("4.7");
+  expect(averageGrade([{ grade: "P", credits: 6 }], true)).toBe("—");
 });
 
 const course = (c: Partial<CourseRow>): CourseRow => ({

@@ -1,5 +1,5 @@
-import { notifications, toneChip } from "@/data/example";
 import { ProgressCopy } from "@/lib/copy";
+import { Notification, toneChip } from "@/lib/notifications";
 import { StudentView } from "@/lib/student-view";
 import { Check, ChevronRight, Copy, ExternalLink, UserRound } from "lucide-react";
 import { useState } from "react";
@@ -71,7 +71,7 @@ export function NotificationRow({
   t,
   onOpen,
 }: {
-  note: (typeof notifications)[number];
+  note: Notification;
   t: ProgressCopy;
   onOpen: () => void;
 }) {

@@ -40,10 +40,21 @@ export const toCourseRow = (c: StudentCourse): CourseRow => ({
 
 const gradePoints: Partial<Record<Grade, number>> = { A: 5, B: 4, C: 3, D: 2, E: 1, Fail: 0 };
 
-/** Average on the A=5 … F=0 scale; pass/fail (P) courses don't count. */
-export function averageGrade(courses: Array<{ grade: Grade }>): string {
-  const points = courses.map((c) => gradePoints[c.grade]).filter((p) => p !== undefined);
-  return points.length ? (points.reduce((a, b) => a + b, 0) / points.length).toFixed(1) : "—";
+/** Average on the A=5 … F=0 scale; pass/fail (P) courses don't count. `weighted`: by ECTS. */
+export function averageGrade(
+  courses: Array<{ grade: Grade; credits: number }>,
+  weighted = false,
+): string {
+  let sum = 0;
+  let weight = 0;
+  for (const c of courses) {
+    const p = gradePoints[c.grade];
+    if (p === undefined) continue;
+    const w = weighted ? c.credits : 1;
+    sum += p * w;
+    weight += w;
+  }
+  return weight ? (sum / weight).toFixed(1) : "—";
 }
 
 const ymd = (iso: string) => iso.split("-").map(Number) as [number, number, number];
@@ -152,10 +163,13 @@ export function buildStudentView(
 
   const gradeTrend = slots
     .map((s) => {
-      const avg = averageGrade(
-        completedCourses.filter((c) => sameSlot({ ...c, period: `P${c.period}` }, s)),
-      );
-      return { ...s, value: avg === "—" ? null : Number(avg) };
+      const inSlot = completedCourses.filter((c) => sameSlot({ ...c, period: `P${c.period}` }, s));
+      const avg = averageGrade(inSlot);
+      return {
+        ...s,
+        value: avg === "—" ? null : Number(avg),
+        weighted: Number(averageGrade(inSlot, true)),
+      };
     })
     .filter((s): s is typeof s & { value: number } => s.value !== null);
 

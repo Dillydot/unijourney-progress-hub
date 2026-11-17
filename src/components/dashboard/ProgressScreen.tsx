@@ -46,6 +46,7 @@ export function ProgressScreen({
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [ectsGrouping, setEctsGrouping] = useState<ProgressGrouping>("period");
+  const [weighted, setWeighted] = useState(false);
 
   const { progress, completedCourses, ectsByPeriod, gradeTrend } = view;
   const semesterName = (semester: string) =>
@@ -82,29 +83,6 @@ export function ProgressScreen({
     });
   })();
 
-  const filteredTrend = gradeTrend.filter(inScope);
-  const trendChart = (() => {
-    if (grouping === "period") return filteredTrend;
-    if (grouping === "semester") {
-      const semesters = [...new Set(filteredTrend.map((item) => item.semester))];
-      return semesters.map((semester) => {
-        const items = filteredTrend.filter((item) => item.semester === semester);
-        return {
-          label: semesterName(semester),
-          value: items.reduce((total, item) => total + item.value, 0) / items.length,
-        };
-      });
-    }
-    const years = [...new Set(filteredTrend.map((item) => item.academicYear))];
-    return years.map((year) => {
-      const items = filteredTrend.filter((item) => item.academicYear === year);
-      return {
-        label: year,
-        value: items.reduce((total, item) => total + item.value, 0) / items.length,
-      };
-    });
-  })();
-
   const scopeCourses = completedCourses.filter(
     (course) =>
       (periodFilter === "all" || `P${course.period}` === periodFilter) &&
@@ -132,9 +110,26 @@ export function ProgressScreen({
   const courseGroups = [...new Set(visibleCourses.map((course) => course.semester))].map(
     (semester) => {
       const courses = visibleCourses.filter((course) => course.semester === semester);
-      return { semester, courses, average: averageGrade(courses) };
+      return { semester, courses, average: averageGrade(courses, weighted) };
     },
   );
+  const filteredTrend = gradeTrend.filter(inScope);
+  const averageOf = (courses: CompletedCourse[]) => Number(averageGrade(courses, weighted));
+  const trendChart =
+    grouping === "period"
+      ? filteredTrend.map((s) => ({ label: s.label, value: weighted ? s.weighted : s.value }))
+      : [
+          ...new Set(
+            filteredTrend.map((s) => (grouping === "semester" ? s.semester : s.academicYear)),
+          ),
+        ].map((key) => ({
+          label: grouping === "semester" ? semesterName(key) : key,
+          value: averageOf(
+            scopeCourses.filter((c) =>
+              grouping === "semester" ? c.semester === key : c.academicYear === key,
+            ),
+          ),
+        }));
   const grades: Grade[] = [
     "A",
     "B",
@@ -144,7 +139,7 @@ export function ProgressScreen({
     "Fail",
     ...(scopeCourses.some((c) => c.grade === "P") ? (["P"] as const) : []),
   ];
-  const scopeAverage = averageGrade(scopeCourses);
+  const scopeAverage = averageGrade(scopeCourses, weighted);
 
   return (
     <div className="space-y-3 md:space-y-4">
@@ -217,6 +212,15 @@ export function ProgressScreen({
               ["period", t.studyPeriods],
               ["semester", t.semesters],
               ["year", t.academicYears],
+            ]}
+          />
+          <GroupingSwitch
+            value={weighted ? "weighted" : "simple"}
+            onChange={(v) => setWeighted(v === "weighted")}
+            label={t.averageGrade}
+            options={[
+              ["simple", t.simpleAverage],
+              ["weighted", t.weightedAverage],
             ]}
           />
           <GradeTrendChart data={trendChart} average={scopeAverage} label={t.averageGrade} />
@@ -463,16 +467,16 @@ export function ProgressCard({
   );
 }
 
-export function GroupingSwitch({
+export function GroupingSwitch<T extends string>({
   value,
   onChange,
   label,
   options,
 }: {
-  value: ProgressGrouping;
-  onChange: (value: ProgressGrouping) => void;
+  value: T;
+  onChange: (value: T) => void;
   label: string;
-  options: Array<[ProgressGrouping, string]>;
+  options: Array<[T, string]>;
 }) {
   return (
     <div

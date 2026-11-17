@@ -17,8 +17,8 @@ import {
   StatTile,
 } from "@/components/dashboard/parts";
 import { Button } from "@/components/ui/button";
-import { notifications } from "@/data/example";
 import { eventsFromPlan, nextDeadline as findNextDeadline } from "@/lib/kth";
+import { buildNotifications } from "@/lib/notifications";
 import { getKthPlan } from "@/lib/kth-api";
 import { useQuery } from "@tanstack/react-query";
 import { Lang, ui } from "@/lib/copy";
@@ -58,6 +58,8 @@ export function daysUntil(iso: string) {
   return diff > 0 ? Math.ceil(diff / 86_400_000) : 0;
 }
 
+const READ_KEY = "unijourney:read-notifications";
+
 export function Dashboard({
   view,
   lang,
@@ -86,12 +88,35 @@ export function Dashboard({
     () => (plan ? eventsFromPlan(plan, view.courseCodes) : []),
     [plan, view.courseCodes],
   );
-  const deadline = plan
-    ? findNextDeadline(planEvents, plan.courses, new Date().toISOString().slice(0, 10))
-    : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const deadline = plan ? findNextDeadline(planEvents, plan.courses, today) : null;
   const daysLeft = deadline ? daysUntil(deadline.iso) : 0;
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notes, setNotes] = useState(notifications);
+  const [readIds, setReadIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(READ_KEY) ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+  const markRead = (ids: string[]) =>
+    setReadIds((current) => {
+      const next = [...new Set([...current, ...ids])].slice(-200);
+      try {
+        localStorage.setItem(READ_KEY, JSON.stringify(next));
+      } catch {
+        // Private mode or blocked storage: read state lasts for this visit only.
+      }
+      return next;
+    });
+  const notes = useMemo(
+    () =>
+      buildNotifications(planEvents, view.completedCourses, today).map((n) => ({
+        ...n,
+        unread: !readIds.includes(n.id),
+      })),
+    [planEvents, view.completedCourses, today, readIds],
+  );
   const nc = newsCopy[lang];
   const [notifPrefs, setNotifPrefs] =
     useState<Record<NotificationPrefKey, boolean>>(defaultNotificationPrefs);
@@ -176,9 +201,7 @@ export function Dashboard({
                   variant="outline"
                   size="sm"
                   className="mt-3 w-full"
-                  onClick={() =>
-                    setNotes((current) => current.map((note) => ({ ...note, unread: false })))
-                  }
+                  onClick={() => markRead(notes.map((note) => note.id))}
                 >
                   <CheckCheck className="size-3.5" aria-hidden="true" />
                   {t.markAllRead}
@@ -192,13 +215,11 @@ export function Dashboard({
               <ul className="mt-2 divide-y divide-border">
                 {notes.map((note) => (
                   <NotificationRow
-                    key={`${note.title}-${note.time}`}
+                    key={note.id}
                     note={note}
                     t={t}
                     onOpen={() => {
-                      setNotes((current) =>
-                        current.map((n) => (n === note ? { ...n, unread: false } : n)),
-                      );
+                      markRead([note.id]);
                       setNotificationsOpen(false);
                       go(note.target);
                     }}
