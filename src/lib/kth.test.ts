@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   detailsFromCourseStore,
   eventsFromPlan,
+  examPeriodsFromPage,
   nextDeadline,
   planFromProgrammeStore,
   readEmbeddedJson,
@@ -91,4 +92,23 @@ test("calendar events and next deadline from the plan", () => {
     iso: "2026-08-31T23:59:00",
   });
   expect(nextDeadline(events, plan.courses, "2026-09-01")).toBeNull();
+});
+
+test("exam periods and Ladok registration windows from the exam schedule page", () => {
+  const events = examPeriodsFromPage(fixture("kth-exam-periods.html"));
+  expect(events).toHaveLength(24);
+  const byId = Object.fromEntries(events.map((e) => [e.id, e]));
+  expect(byId["exam-period-1-2026-start"]).toMatchObject({ date: "2026-10-15", kind: "exam" });
+  expect(byId["re-exam-period-1-2026-exam-close"]?.date).toBe("2026-11-26");
+  expect(byId["exam-period-2-2026-start"]?.date).toBe("2027-01-04");
+  expect(byId["exam-period-2-2026-exam-close"]?.date).toBe("2026-12-10");
+  expect(byId["re-exam-period-2-2026-start"]).toMatchObject({
+    date: "2027-03-30",
+    title: "Re-exam period 2 (30 Mar – 2 Apr)",
+  });
+  expect(byId["re-exam-period-4-2026-start"]?.date).toBe("2027-08-16");
+  expect(byId["re-exam-period-4-2026-exam-close"]?.date).toBe("2027-07-29");
+  // Exam deadlines don't replace the course registration deadline card.
+  expect(nextDeadline(events, [], "2026-11-17")).toBeNull();
+  expect(() => examPeriodsFromPage("<html></html>")).toThrow();
 });

@@ -186,13 +186,82 @@ export function withDetails(
 export type PlanEvent = {
   id: string;
   date: string;
-  kind: "course" | "registration";
+  kind: "course" | "registration" | "exam";
   title: string;
   code: string;
   href: string;
 };
 
 const LADOK_URL = "https://www.student.ladok.se/";
+const EXAMS_URL = "https://www.kth.se/en/student/studier/schema/tentaperioder-1.278515";
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/**
+ * KTH-wide exam periods and their Ladok registration windows, from the public exam schedule page.
+ * Applies to every course with an exam; course-specific exam days live in TimeEdit.
+ */
+export function examPeriodsFromPage(html: string): PlanEvent[] {
+  const years = html.match(/Exam and re-exam periods (\d{4})\/(\d{4})/);
+  if (!years) throw new Error("kth.se exam schedule page: unexpected format");
+  // The academic year starts late August with no exams; Sep–Dec is its first calendar year.
+  const iso = (day: string, month: string) => {
+    const m = MONTHS.indexOf(month) + 1;
+    if (!m) throw new Error(`kth.se exam schedule page: unknown month ${month}`);
+    return `${m >= 9 ? years[1] : years[2]}-${String(m).padStart(2, "0")}-${day.padStart(2, "0")}`;
+  };
+  const events: PlanEvent[] = [];
+  const re =
+    /<h3>((?:Re-exam|Exam) period (\d)): (\d{1,2})(?: (\w+))?\s*[-–]\s*(\d{1,2}) (\w+)<\/h3>\s*<p>Registration opens (\d{1,2}) (\w+) and closes (\d{1,2}) (\w+)/g;
+  for (const m of html.matchAll(re)) {
+    const [, name = "", , d1 = "", m1, d2 = "", m2 = "", od = "", om = "", cd = "", cm = ""] = m;
+    const id = `${name.toLowerCase().replace(/ /g, "-")}-${years[1]}`;
+    const start = iso(d1, m1 ?? m2);
+    const end = iso(d2, m2);
+    const range = `${fmtShort(start)} – ${fmtShort(end)}`;
+    events.push(
+      {
+        id: `${id}-start`,
+        date: start,
+        kind: "exam",
+        title: `${name} (${range})`,
+        code: "",
+        href: EXAMS_URL,
+      },
+      {
+        id: `${id}-exam-open`,
+        date: iso(od, om),
+        kind: "registration",
+        title: `Exam registration opens: ${name}`,
+        code: "",
+        href: LADOK_URL,
+      },
+      {
+        id: `${id}-exam-close`,
+        date: iso(cd, cm),
+        kind: "registration",
+        title: `Last day to register for ${name.toLowerCase()} (${range})`,
+        code: "",
+        href: LADOK_URL,
+      },
+    );
+  }
+  if (!events.length) throw new Error("kth.se exam schedule page: no exam periods found");
+  return events.sort((a, b) => a.date.localeCompare(b.date));
+}
+const fmtShort = (iso: string) => short(iso, false);
 
 /** Course start/end days and registration windows for the student's own and mandatory courses. */
 export function eventsFromPlan(plan: ProgrammePlan, myCodes: string[]): PlanEvent[] {

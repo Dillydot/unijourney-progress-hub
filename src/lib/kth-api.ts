@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
   detailsFromCourseStore,
+  examPeriodsFromPage,
   planFromProgrammeStore,
   readEmbeddedJson,
   withDetails,
@@ -23,6 +24,12 @@ function page(url: string): Promise<string> {
   html.catch(() => cache.delete(url));
   return html;
 }
+
+export const getKthExamPeriods = createServerFn({ method: "GET" }).handler(async () =>
+  examPeriodsFromPage(
+    await page("https://www.kth.se/en/student/studier/schema/tentaperioder-1.278515"),
+  ),
+);
 
 export const getKthPlan = createServerFn({ method: "GET" })
   .validator((input: { programmeCode: string; term: string }) => {

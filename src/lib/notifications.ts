@@ -50,14 +50,14 @@ export function buildNotifications(
     const days = daysBetween(today, e.date);
     if (days < 0) return [];
     if (e.kind === "registration" && days <= 30) {
-      const closes = e.id.endsWith("-reg-close");
+      const closes = e.id.endsWith("-close");
       return [
         {
           id: e.id,
           type: closes ? "Registration deadline" : "Registration opens",
           icon: BellRing,
           title: e.title,
-          body: `${e.code} · ${fmt(e.date)}${days === 0 ? " (today)" : ` (in ${days} days)`}`,
+          body: `${e.code ? `${e.code} · ` : ""}${fmt(e.date)}${days === 0 ? " (today)" : ` (in ${days} days)`}`,
           time: fmt(e.date),
           tone: closes ? "warning" : "primary",
           unread: true,

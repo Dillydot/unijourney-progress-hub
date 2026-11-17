@@ -22,7 +22,7 @@ export type CalendarEvent = {
 const copy = {
   en: {
     title: "Calendar",
-    intro: "Course dates and registration deadlines from kth.se. Open a course for its full schedule in TimeEdit.",
+    intro: "Course dates, exam periods and registration deadlines from kth.se. Open a course for its full schedule in TimeEdit.",
     example: "From kth.se",
     week: "Week",
     month: "Month",
@@ -51,7 +51,7 @@ const copy = {
   },
   sv: {
     title: "Kalender",
-    intro: "Kursdatum och registreringsdatum från kth.se. Öppna en kurs för hela schemat i TimeEdit.",
+    intro: "Kursdatum, tentaperioder och anmälningsdatum från kth.se. Öppna en kurs för hela schemat i TimeEdit.",
     example: "Från kth.se",
     week: "Vecka",
     month: "Månad",

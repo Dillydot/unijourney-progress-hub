@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { eventsFromPlan, nextDeadline as findNextDeadline } from "@/lib/kth";
 import { buildNotifications } from "@/lib/notifications";
-import { getKthPlan } from "@/lib/kth-api";
+import { getKthExamPeriods, getKthPlan } from "@/lib/kth-api";
 import { useQuery } from "@tanstack/react-query";
 import { Lang, ui } from "@/lib/copy";
 import { Grade, StudentView } from "@/lib/student-view";
@@ -84,9 +84,18 @@ export function Dashboard({
     staleTime: 12 * 60 * 60 * 1000,
   });
   const plan = planQuery.data;
+  const examQuery = useQuery({
+    queryKey: ["kth-exam-periods"],
+    queryFn: () => getKthExamPeriods(),
+    staleTime: 12 * 60 * 60 * 1000,
+  });
+  const examEvents = examQuery.data;
   const planEvents = useMemo(
-    () => (plan ? eventsFromPlan(plan, view.courseCodes) : []),
-    [plan, view.courseCodes],
+    () =>
+      [...(plan ? eventsFromPlan(plan, view.courseCodes) : []), ...(examEvents ?? [])].sort(
+        (a, b) => a.date.localeCompare(b.date),
+      ),
+    [plan, view.courseCodes, examEvents],
   );
   const today = new Date().toISOString().slice(0, 10);
   const deadline = plan ? findNextDeadline(planEvents, plan.courses, today) : null;
