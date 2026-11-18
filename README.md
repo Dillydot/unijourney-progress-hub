@@ -16,3 +16,7 @@ bun run dev
 ```
 
 `bun run build` builds to `.output/`; `node .output/server/index.mjs` serves it.
+
+## License
+
+All rights reserved. The code is public to read, not to reuse; see [LICENSE](LICENSE).

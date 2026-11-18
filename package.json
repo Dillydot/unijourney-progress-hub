@@ -1,6 +1,7 @@
 {
   "name": "unijourney-progress-hub",
   "private": true,
+  "license": "UNLICENSED",
   "sideEffects": false,
   "type": "module",
   "scripts": {
