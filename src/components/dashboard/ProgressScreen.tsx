@@ -7,14 +7,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Lang, ProgressCopy } from "@/lib/copy";
-import { CompletedCourse, Grade, StudentView, averageGrade } from "@/lib/student-view";
+import { plannedCredits, type ProgrammePlan } from "@/lib/kth";
+import { CompletedCourse, Grade, GradeScale, StudentView, averageGrade } from "@/lib/student-view";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 
 export type ProgressGrouping = "period" | "semester" | "year";
 
+const scaleLabel: Record<GradeScale, string> = { "5-3": "A=5 … E=3", "5-1": "A=5 … E=1" };
+
 export function ProgressScreen({
   view,
+  plan,
   lang,
   t,
   periodFilter,
@@ -29,6 +33,7 @@ export function ProgressScreen({
   setSelectedGrade,
 }: {
   view: StudentView;
+  plan: ProgrammePlan | undefined;
   lang: Lang;
   t: ProgressCopy;
   periodFilter: string;
@@ -46,7 +51,8 @@ export function ProgressScreen({
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [ectsGrouping, setEctsGrouping] = useState<ProgressGrouping>("period");
-  const [weighted, setWeighted] = useState(false);
+  const [weighted, setWeighted] = useState(true);
+  const [scale, setScale] = useState<GradeScale>("5-3");
 
   const { progress, completedCourses, ectsByPeriod, gradeTrend } = view;
   const semesterName = (semester: string) =>
@@ -110,14 +116,15 @@ export function ProgressScreen({
   const courseGroups = [...new Set(visibleCourses.map((course) => course.semester))].map(
     (semester) => {
       const courses = visibleCourses.filter((course) => course.semester === semester);
-      return { semester, courses, average: averageGrade(courses, weighted) };
+      return { semester, courses, average: averageGrade(courses, { weighted, scale }) };
     },
   );
   const filteredTrend = gradeTrend.filter(inScope);
-  const averageOf = (courses: CompletedCourse[]) => Number(averageGrade(courses, weighted));
+  const averageOf = (courses: CompletedCourse[]) =>
+    Number(averageGrade(courses, { weighted, scale }));
   const trendChart =
     grouping === "period"
-      ? filteredTrend.map((s) => ({ label: s.label, value: weighted ? s.weighted : s.value }))
+      ? filteredTrend.map((s) => ({ label: s.label, value: averageOf(s.courses) }))
       : [
           ...new Set(
             filteredTrend.map((s) => (grouping === "semester" ? s.semester : s.academicYear)),
@@ -139,7 +146,17 @@ export function ProgressScreen({
     "Fail",
     ...(scopeCourses.some((c) => c.grade === "P") ? (["P"] as const) : []),
   ];
-  const scopeAverage = averageGrade(scopeCourses, weighted);
+  const scopeAverage = averageGrade(scopeCourses, { weighted, scale });
+
+  const total = Number(progress.totalCredits);
+  const planned = plan ? plannedCredits(plan, view.courseCodes) : 0;
+  const statusRows = [
+    { label: t.completedStatus, ects: Number(progress.completedCredits), color: "bg-primary" },
+    { label: t.registeredStatus, ects: progress.registeredCredits, color: "bg-warning" },
+    ...(plan ? [{ label: t.plannedStatus, ects: planned, color: "bg-success" }] : []),
+  ];
+  const open = Math.max(0, total - statusRows.reduce((s, r) => s + r.ects, 0));
+  if (plan && open > 0) statusRows.push({ label: t.openStatus, ects: open, color: "bg-secondary" });
 
   return (
     <div className="space-y-3 md:space-y-4">
@@ -188,6 +205,30 @@ export function ProgressScreen({
         </div>
       </section>
 
+      <ProgressCard title={t.ectsByStatus} description={t.ectsByStatusDescription}>
+        <div className="flex h-3 overflow-hidden rounded-full bg-secondary">
+          {statusRows.map((r) => (
+            <div
+              key={r.label}
+              className={r.color}
+              style={{ width: `${(r.ects / total) * 100}%` }}
+            />
+          ))}
+        </div>
+        <ul className="mt-3 space-y-1.5 text-sm">
+          {statusRows.map((r) => (
+            <li key={r.label} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2">
+              <span className={`size-2.5 rounded-full ${r.color}`} aria-hidden="true" />
+              <span className="min-w-0 truncate font-semibold">{r.label}</span>
+              <span className="font-bold">{Math.round(r.ects * 10) / 10} ECTS</span>
+              <span className="w-12 text-right text-muted-foreground">
+                {Math.round((r.ects / total) * 100)}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      </ProgressCard>
+
       <div className="grid items-start gap-3 lg:grid-cols-2 lg:gap-4">
         <ProgressCard title={t.ectsProgress} description={t.ectsProgressDescription}>
           <GroupingSwitch
@@ -203,7 +244,10 @@ export function ProgressScreen({
           <EctsChart data={ectsChart} earnedLabel={t.earned} expectedLabel={t.expected} />
         </ProgressCard>
 
-        <ProgressCard title={t.gradeDevelopment} description={t.gradeDevelopmentDescription}>
+        <ProgressCard
+          title={t.gradeDevelopment}
+          description={t.gradeDevelopmentDescription(scaleLabel[scale], weighted)}
+        >
           <GroupingSwitch
             value={grouping}
             onChange={setGrouping}
@@ -219,8 +263,17 @@ export function ProgressScreen({
             onChange={(v) => setWeighted(v === "weighted")}
             label={t.averageGrade}
             options={[
-              ["simple", t.simpleAverage],
               ["weighted", t.weightedAverage],
+              ["simple", t.simpleAverage],
+            ]}
+          />
+          <GroupingSwitch
+            value={scale}
+            onChange={setScale}
+            label={t.gradeScale}
+            options={[
+              ["5-3", scaleLabel["5-3"]],
+              ["5-1", scaleLabel["5-1"]],
             ]}
           />
           <GradeTrendChart data={trendChart} average={scopeAverage} label={t.averageGrade} />

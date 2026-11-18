@@ -81,7 +81,10 @@ test("parses transcript, including wrapped names", () => {
       ],
     },
   ]);
-  const earned = [...t.courses, ...t.partial.flatMap((p) => p.parts)].reduce((s, c) => s + c.credits, 0);
+  const earned = [...t.courses, ...t.partial.flatMap((p) => p.parts)].reduce(
+    (s, c) => s + c.credits,
+    0,
+  );
   expect(earned).toBe(t.totalCredits);
   expect(JSON.stringify(t)).not.toContain("19990101"); // never extract the personal number
 });
@@ -104,9 +107,17 @@ test("parses registration across a page break", () => {
 });
 
 test("merges grades with codes and derives status", () => {
-  const merged = mergeLadok(parseTranscript(transcript), parseRegistration(registration), "2026-11-16");
+  const merged = mergeLadok(
+    parseTranscript(transcript),
+    parseRegistration(registration),
+    "2026-11-16",
+  );
   const byName = Object.fromEntries(merged.map((c) => [c.name, c]));
-  expect(byName["Technology-based Entrepreneurship"]).toMatchObject({ code: "ME2620", grade: "B", status: "completed" });
+  expect(byName["Technology-based Entrepreneurship"]).toMatchObject({
+    code: "ME2620",
+    grade: "B",
+    status: "completed",
+  });
   expect(byName["Research Methods in Industrial Engineering and Management"]).toMatchObject({
     status: "ongoing",
     earnedCredits: 2,
@@ -143,12 +154,19 @@ test("transcript with codes: splits codes off and joins on them", () => {
     ["ME2620", "Tech-based Entrepreneurship (renamed)"],
     ["ME2999", "A Very Long Course Name That Wraps Onto Two Lines"],
   ]);
-  expect(t.partial[0]).toMatchObject({ code: "ME2003", name: "Research Methods in Industrial Engineering and Management" });
+  expect(t.partial[0]).toMatchObject({
+    code: "ME2003",
+    name: "Research Methods in Industrial Engineering and Management",
+  });
   expect(t.partial[0]?.parts.map((p) => p.code)).toEqual(["INL1", "INL2"]);
 
   const merged = mergeLadok(t, parseRegistration(registration), "2026-11-16");
   const byCode = Object.fromEntries(merged.map((c) => [c.code, c]));
-  expect(byCode["ME2620"]).toMatchObject({ name: "Technology-based Entrepreneurship", grade: "B", status: "completed" });
+  expect(byCode["ME2620"]).toMatchObject({
+    name: "Technology-based Entrepreneurship",
+    grade: "B",
+    status: "completed",
+  });
   expect(byCode["ME2003"]).toMatchObject({ earnedCredits: 2, status: "ongoing" });
   expect(merged).toHaveLength(4); // nothing left unmatched
   expect(merged.reduce((s, c) => s + c.earnedCredits, 0)).toBe(t.totalCredits);
@@ -166,6 +184,10 @@ const errorCode = (fn: () => unknown) => {
 test("tells the student which Ladok setting is wrong", () => {
   expect(errorCode(() => parseTranscript(registration))).toBe("wrong_document");
   expect(errorCode(() => parseRegistration(transcript))).toBe("wrong_document");
-  expect(errorCode(() => parseRegistration(registration.replace(/^ME\d{4} /gm, "")))).toBe("missing_codes");
-  expect(errorCode(() => parseTranscript("Officiellt resultatintyg Utskriftsdatum\n2026-11-16"))).toBe("swedish");
+  expect(errorCode(() => parseRegistration(registration.replace(/^ME\d{4} /gm, "")))).toBe(
+    "missing_codes",
+  );
+  expect(
+    errorCode(() => parseTranscript("Officiellt resultatintyg Utskriftsdatum\n2026-11-16")),
+  ).toBe("swedish");
 });

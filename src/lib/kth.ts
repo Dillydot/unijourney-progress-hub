@@ -183,6 +183,21 @@ export function withDetails(
   };
 }
 
+/** Credits of mandatory programme courses the student hasn't started, e.g. the degree project. */
+export function plannedCredits(plan: ProgrammePlan, myCodes: string[]) {
+  const mine = new Set(myCodes);
+  const byCode = new Map<string, number>();
+  const round = new Map<string, string>();
+  for (const c of plan.courses) {
+    if (c.kind !== "mandatory" || mine.has(c.code)) continue;
+    // A course spanning two periods appears once per period; count only its first round.
+    if ((round.get(c.code) ?? c.applicationCode) !== c.applicationCode) continue;
+    round.set(c.code, c.applicationCode);
+    byCode.set(c.code, (byCode.get(c.code) ?? 0) + c.credits);
+  }
+  return [...byCode.values()].reduce((a, b) => a + b, 0);
+}
+
 export type PlanEvent = {
   id: string;
   date: string;

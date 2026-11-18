@@ -38,23 +38,29 @@ export const toCourseRow = (c: StudentCourse): CourseRow => ({
   status: c.status,
 });
 
-const gradePoints: Partial<Record<Grade, number>> = { A: 5, B: 4, C: 3, D: 2, E: 1, Fail: 0 };
+// KTH has no official GPA. "5-3" follows the traditional Swedish 3–5 scale; "5-1" is the other common one.
+export type GradeScale = "5-3" | "5-1";
+const gradePoints: Record<GradeScale, Partial<Record<Grade, number>>> = {
+  "5-3": { A: 5, B: 4.5, C: 4, D: 3.5, E: 3 },
+  "5-1": { A: 5, B: 4, C: 3, D: 2, E: 1 },
+};
+export const isGraded = (g: Grade) => g in gradePoints["5-1"];
 
-/** Average on the A=5 … F=0 scale; pass/fail (P) courses don't count. `weighted`: by ECTS. */
+/** Average grade; pass/fail (P) and failed attempts don't count. Weighted by ECTS unless `weighted` is false. */
 export function averageGrade(
   courses: Array<{ grade: Grade; credits: number }>,
-  weighted = false,
+  { weighted = true, scale = "5-3" }: { weighted?: boolean; scale?: GradeScale } = {},
 ): string {
   let sum = 0;
   let weight = 0;
   for (const c of courses) {
-    const p = gradePoints[c.grade];
+    const p = gradePoints[scale][c.grade];
     if (p === undefined) continue;
     const w = weighted ? c.credits : 1;
     sum += p * w;
     weight += w;
   }
-  return weight ? (sum / weight).toFixed(1) : "—";
+  return weight ? (sum / weight).toFixed(2) : "—";
 }
 
 const ymd = (iso: string) => iso.split("-").map(Number) as [number, number, number];
@@ -164,14 +170,9 @@ export function buildStudentView(
   const gradeTrend = slots
     .map((s) => {
       const inSlot = completedCourses.filter((c) => sameSlot({ ...c, period: `P${c.period}` }, s));
-      const avg = averageGrade(inSlot);
-      return {
-        ...s,
-        value: avg === "—" ? null : Number(avg),
-        weighted: Number(averageGrade(inSlot, true)),
-      };
+      return { ...s, courses: inSlot.some((c) => isGraded(c.grade)) ? inSlot : null };
     })
-    .filter((s): s is typeof s & { value: number } => s.value !== null);
+    .filter((s): s is typeof s & { courses: typeof completedCourses } => s.courses !== null);
 
   const earned = courses.reduce((sum, c) => sum + c.earned_credits, 0);
   const total = profile.programme_credits ?? 120;
@@ -214,6 +215,10 @@ export function buildStudentView(
       remainingCredits: fmtNum(Math.max(0, total - earned)),
       programmeProgress: `${pct}%`,
       progressPercent: pct,
+      /** Credits still to earn on courses the student is registered on. */
+      registeredCredits: courses
+        .filter((c) => c.status !== "completed")
+        .reduce((sum, c) => sum + Math.max(0, c.credits - c.earned_credits), 0),
       passedCourses: String(completed.filter((c) => toGrade(c.grade!) !== "Fail").length),
     },
     completedCourses,

@@ -4,7 +4,13 @@
 export type LadokGrade = "A" | "B" | "C" | "D" | "E" | "FX" | "F" | "P";
 
 /** `code` is set when the transcript was created with "Codes" ticked (module code for parts, e.g. INL1). */
-export type TranscriptCourse = { code: string | null; name: string; credits: number; grade: LadokGrade; date: string };
+export type TranscriptCourse = {
+  code: string | null;
+  name: string;
+  credits: number;
+  grade: LadokGrade;
+  date: string;
+};
 export type Transcript = {
   printDate: string;
   controlCode: string;
@@ -13,9 +19,20 @@ export type Transcript = {
   /** "Parts of uncompleted courses": modules already passed in courses not yet finished. */
   partial: PartialCourse[];
 };
-export type PartialCourse = { code: string | null; name: string; credits: number; parts: TranscriptCourse[] };
+export type PartialCourse = {
+  code: string | null;
+  name: string;
+  credits: number;
+  parts: TranscriptCourse[];
+};
 
-export type RegisteredCourse = { code: string; name: string; credits: number; start: string; end: string };
+export type RegisteredCourse = {
+  code: string;
+  name: string;
+  credits: number;
+  start: string;
+  end: string;
+};
 export type Registration = {
   printDate: string;
   controlCode: string;
@@ -39,7 +56,11 @@ export type StudentCourse = {
 const DATE = String.raw`\d{4}-\d{2}-\d{2}`;
 const NUM = String.raw`\d+(?:\.\d+)?`;
 
-const lines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean);
+const lines = (text: string) =>
+  text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
 
 /** `code` tells the upload screen which Ladok setting the student has to change. */
 export class LadokError extends Error {
@@ -64,7 +85,8 @@ function field(text: string, re: RegExp, what: string): string {
   return m[1];
 }
 
-const printDate = (text: string) => field(text, new RegExp(`Print date\\s*\\n(${DATE})`), "print date");
+const printDate = (text: string) =>
+  field(text, new RegExp(`Print date\\s*\\n(${DATE})`), "print date");
 const controlCode = (text: string) => field(text, /control code:\s*([A-Z0-9]+)/i, "control code");
 
 export function parseTranscript(text: string): Transcript {
@@ -99,7 +121,12 @@ export function parseTranscript(text: string): Transcript {
         pendingName += `${line} `;
         continue;
       }
-      const entry = { ...split(pendingName + m[1]), credits: Number(m[2]), grade: m[3] as LadokGrade, date: m[4]! };
+      const entry = {
+        ...split(pendingName + m[1]),
+        credits: Number(m[2]),
+        grade: m[3] as LadokGrade,
+        date: m[4]!,
+      };
       pendingName = "";
       if (section === "completed") courses.push(entry);
       else {
@@ -113,7 +140,9 @@ export function parseTranscript(text: string): Transcript {
   return {
     printDate: printDate(text),
     controlCode: controlCode(text),
-    totalCredits: Number(field(text, new RegExp(`Credited education\\s*\\n(${NUM}) hp`), "total credits")),
+    totalCredits: Number(
+      field(text, new RegExp(`Credited education\\s*\\n(${NUM}) hp`), "total credits"),
+    ),
     courses,
     partial,
   };
@@ -123,10 +152,18 @@ export function parseRegistration(text: string): Registration {
   checkDocument(text, "Certificate of Registration");
 
   const prog = text.match(
-    new RegExp(`\\n([A-Z]{4,6}) ([^(]+?) \\((${NUM}) hp\\)\\s*\\nStudy period: (${DATE}) - (${DATE})`),
+    new RegExp(
+      `\\n([A-Z]{4,6}) ([^(]+?) \\((${NUM}) hp\\)\\s*\\nStudy period: (${DATE}) - (${DATE})`,
+    ),
   );
   const programme = prog
-    ? { code: prog[1]!, name: prog[2]!.replace(/\s+/g, " "), credits: Number(prog[3]), start: prog[4]!, end: prog[5]! }
+    ? {
+        code: prog[1]!,
+        name: prog[2]!.replace(/\s+/g, " "),
+        credits: Number(prog[3]),
+        start: prog[4]!,
+        end: prog[5]!,
+      }
     : null;
 
   const head = /^([A-Z]{2}\d{3,4}[A-Z]?) (.+)$/;
@@ -143,7 +180,13 @@ export function parseRegistration(text: string): Registration {
     if (!current) continue;
     const t = line.match(tail);
     if (t) {
-      courses.push({ code: current.code, name: current.name, credits: Number(t[1]), start: t[2]!, end: t[3]! });
+      courses.push({
+        code: current.code,
+        name: current.name,
+        credits: Number(t[1]),
+        start: t[2]!,
+        end: t[3]!,
+      });
       current = null;
     } else if (line.startsWith("Rate of study:")) current.nameDone = true;
     else if (!current.nameDone) current.name += ` ${line}`;
@@ -151,7 +194,10 @@ export function parseRegistration(text: string): Registration {
 
   // Without "Codes for courses, programmes" no row starts with a course code.
   if (courses.length === 0)
-    throw new LadokError("missing_codes", "No course codes found; tick \"Codes for courses, programmes, etc.\" in Ladok");
+    throw new LadokError(
+      "missing_codes",
+      'No course codes found; tick "Codes for courses, programmes, etc." in Ladok',
+    );
   return { printDate: printDate(text), controlCode: controlCode(text), programme, courses };
 }
 
@@ -170,7 +216,11 @@ function take<T>(map: Map<string, T>, r: RegisteredCourse): T | undefined {
 }
 
 /** Joins both certificates: the transcript has grades, the registration has codes and periods. */
-export function mergeLadok(transcript: Transcript, registration: Registration, today: string): StudentCourse[] {
+export function mergeLadok(
+  transcript: Transcript,
+  registration: Registration,
+  today: string,
+): StudentCourse[] {
   const graded = new Map(transcript.courses.map((c) => [id(c), c]));
   const partEarned = new Map(
     transcript.partial.map((p) => [id(p), p.parts.reduce((sum, part) => sum + part.credits, 0)]),
@@ -203,5 +253,7 @@ export function mergeLadok(transcript: Transcript, registration: Registration, t
       status: "completed",
     });
 
-  return result.sort((a, b) => (a.start ?? a.gradeDate ?? "").localeCompare(b.start ?? b.gradeDate ?? ""));
+  return result.sort((a, b) =>
+    (a.start ?? a.gradeDate ?? "").localeCompare(b.start ?? b.gradeDate ?? ""),
+  );
 }

@@ -360,6 +360,7 @@ export function Dashboard({
         {tab === "progress" && (
           <ProgressScreen
             view={view}
+            plan={plan}
             lang={lang}
             t={t}
             periodFilter={periodFilter}

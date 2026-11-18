@@ -4,6 +4,7 @@ import {
   detailsFromCourseStore,
   eventsFromPlan,
   examPeriodsFromPage,
+  plannedCredits,
   nextDeadline,
   planFromProgrammeStore,
   readEmbeddedJson,
@@ -111,4 +112,13 @@ test("exam periods and Ladok registration windows from the exam schedule page", 
   // Exam deadlines don't replace the course registration deadline card.
   expect(nextDeadline(events, [], "2026-11-17")).toBeNull();
   expect(() => examPeriodsFromPage("<html></html>")).toThrow();
+});
+
+test("planned credits: mandatory courses not started, spanning courses counted once", () => {
+  const plan = planFromProgrammeStore(
+    readEmbeddedJson(fixture("kth-programme-TTBEM.html"), "__compressedApplicationStore__"),
+  );
+  // ME2003 is mandatory, 6 + 1.5 over two periods; ME2620 is already registered; ME2016 is elective.
+  expect(plannedCredits(plan, ["ME2620"])).toBe(7.5);
+  expect(plannedCredits(plan, ["ME2620", "ME2003"])).toBe(0);
 });
