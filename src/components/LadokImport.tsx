@@ -1,5 +1,14 @@
-import { useState } from "react";
-import { CheckCircle2, ExternalLink, FileText, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Fragment, useState } from "react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  ShieldCheck,
+  Square,
+  SquareCheck,
+  TriangleAlert,
+  Upload,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,32 +25,57 @@ import { toCourseRow } from "@/lib/student-view";
 type Lang = "en" | "sv";
 type Kind = "transcript" | "registration";
 
+// Ladok's form labels as students see them (English UI). The PDF must be created in English.
 const copy = {
   en: {
     title: "Import your studies from Ladok",
     intro:
-      "Download two PDFs from Ladok and add them here. They are read on this device and never uploaded; we only save your courses, grades and credits.",
+      "Create two PDFs in Ladok and add them here. They are read on this device and never uploaded; we only save your courses, grades and credits.",
     open: "Open Ladok",
-    where: "In Ladok: Transcripts and certificates → Create",
+    where:
+      "In Ladok, go to Transcripts and certificates → Create. Fill in the form exactly like this:",
+    field: "Field",
+    include: "Include",
+    tick: "Tick",
+    untick: "Leave empty",
     transcript: {
-      title: "1. Official transcript of records",
-      steps: [
-        "Type: Official transcript of records",
-        "Define: All completed courses",
-        "Language: English",
-        "Include: ✓ Passed modules in not completed courses, ✓ Credited education, ✓ Codes",
+      title: "1. Transcript of records",
+      fields: [
+        ["Type", "Official transcript of records"],
+        ["Define", "All completed courses"],
+        ["Language", "English"],
+      ],
+      include: [
+        ["Passed modules in not completed courses", true],
+        ["Passed modules for completed courses", false],
+        ["Credited education", true],
+        ["Issued degrees/certificates", false],
+        ["Internship", false],
+        ["Codes", true],
+        ["Education levels", false],
+        ["Grading table per course", false],
       ],
     },
     registration: {
-      title: "2. Certificate of Registration",
-      steps: [
-        "Type: Certificate of Registration",
-        "Select: All registrations arranged by programme",
-        "Language: English",
-        "Include: leave as it is (Codes must stay ticked)",
+      title: "2. Certificate of registration",
+      fields: [
+        ["Type", "Certificate of Registration"],
+        ["Select", "All registrations arranged by programme"],
+        ["Language", "English"],
+      ],
+      include: [
+        ["Codes for courses, programmes, etc.", true],
+        ["Rate of study, teaching hours, type of instruction and study location", true],
+        ["Courses with early discontinuation", false],
+        ["Supervisor", false],
+        ["Study activity and study funding", false],
       ],
     },
-    choose: "Choose PDF",
+    then: "Then click Create and download the PDF.",
+    drop: "Add both PDFs here",
+    dropHint: "Drag them onto this box or choose files. One at a time works too.",
+    choose: "Choose PDFs",
+    waiting: "Waiting for this PDF",
     name: "Your name (shown on your profile)",
     save: "Save to UniJourney",
     saving: "Saving…",
@@ -50,10 +84,7 @@ const copy = {
     summary: (programme: string, hp: number, total: number) => `${programme}: ${hp} of ${total} hp`,
     errors: {
       swedish: "This PDF is in Swedish. Create it again in Ladok with Language: English.",
-      wrong_document: {
-        transcript: "This isn't an Official transcript of records.",
-        registration: "This isn't a Certificate of Registration.",
-      },
+      other: "This isn't a Ladok transcript of records or certificate of registration.",
       missing_codes:
         "Course codes are missing. Tick “Codes for courses, programmes, etc.” in Ladok.",
       no_programme:
@@ -64,28 +95,52 @@ const copy = {
   sv: {
     title: "Importera dina studier från Ladok",
     intro:
-      "Ladda ner två PDF:er från Ladok och lägg till dem här. De läses på den här enheten och laddas aldrig upp; vi sparar bara kurser, betyg och poäng.",
+      "Skapa två PDF:er i Ladok och lägg till dem här. De läses på den här enheten och laddas aldrig upp; vi sparar bara kurser, betyg och poäng.",
     open: "Öppna Ladok",
-    where: "I Ladok: Intyg → Skapa",
+    where:
+      "I Ladok: Intyg → Skapa. Fyll i formuläret exakt så här (PDF:en måste vara på engelska):",
+    field: "Fält",
+    include: "Inkludera",
+    tick: "Kryssa i",
+    untick: "Lämna tom",
     transcript: {
-      title: "1. Officiellt resultatintyg",
-      steps: [
-        "Typ: Officiellt resultatintyg",
-        "Avgränsa: Alla avslutade kurser",
-        "Språk: Engelska",
-        "Inkludera: ✓ Godkända moduler i ej avslutade kurser, ✓ Tillgodoräknad utbildning, ✓ Koder",
+      title: "1. Resultatintyg",
+      fields: [
+        ["Typ", "Officiellt resultatintyg"],
+        ["Avgränsa", "Alla avslutade kurser"],
+        ["Språk", "Engelska"],
+      ],
+      include: [
+        ["Godkända moduler i ej avslutade kurser", true],
+        ["Godkända moduler i avslutade kurser", false],
+        ["Tillgodoräknad utbildning", true],
+        ["Utfärdade examina/bevis", false],
+        ["Praktik", false],
+        ["Koder", true],
+        ["Utbildningsnivåer", false],
+        ["Betygsfördelning per kurs", false],
       ],
     },
     registration: {
       title: "2. Registreringsintyg",
-      steps: [
-        "Typ: Registreringsintyg",
-        "Välj: Alla registreringar ordnade efter program",
-        "Språk: Engelska",
-        "Inkludera: lämna som det är (Koder måste vara ikryssat)",
+      fields: [
+        ["Typ", "Registreringsintyg"],
+        ["Välj", "Alla registreringar ordnade efter program"],
+        ["Språk", "Engelska"],
+      ],
+      include: [
+        ["Koder för kurser, program m.m.", true],
+        ["Studietakt, undervisningstid, undervisningsform och studieort", true],
+        ["Kurser med tidigt avbrott", false],
+        ["Handledare", false],
+        ["Studieaktivitet och studiefinansiering", false],
       ],
     },
-    choose: "Välj PDF",
+    then: "Klicka sedan på Skapa och ladda ner PDF:en.",
+    drop: "Lägg till båda PDF:erna här",
+    dropHint: "Dra dem hit eller välj filer. En i taget går också bra.",
+    choose: "Välj PDF:er",
+    waiting: "Väntar på denna PDF",
     name: "Ditt namn (visas på din profil)",
     save: "Spara i UniJourney",
     saving: "Sparar…",
@@ -94,17 +149,14 @@ const copy = {
     summary: (programme: string, hp: number, total: number) => `${programme}: ${hp} av ${total} hp`,
     errors: {
       swedish: "PDF:en är på svenska. Skapa den igen i Ladok med Språk: Engelska.",
-      wrong_document: {
-        transcript: "Det här är inte ett officiellt resultatintyg.",
-        registration: "Det här är inte ett registreringsintyg.",
-      },
+      other: "Det här är varken ett resultatintyg eller ett registreringsintyg från Ladok.",
       missing_codes: "Kurskoder saknas. Kryssa i ”Koder för kurser, program m.m.” i Ladok.",
       no_programme:
         "Inget program hittades. Välj ”Alla registreringar ordnade efter program” i Ladok.",
       unreadable: "Vi kunde inte läsa PDF:en. Använd original-PDF:en från Ladok.",
     },
   },
-};
+} as const;
 
 async function pdfText(file: File) {
   const { extractText, getDocumentProxy } = await import("unpdf");
@@ -126,35 +178,47 @@ export function LadokImport({
   const t = copy[lang];
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [registration, setRegistration] = useState<Registration | null>(null);
-  const [errors, setErrors] = useState<Partial<Record<Kind, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<Kind | "other", string | undefined>>>({});
+  const [dragging, setDragging] = useState(false);
   const [name, setName] = useState(defaultName);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  async function read(kind: Kind, file: File | undefined) {
-    if (!file) return;
-    setErrors((e) => ({ ...e, [kind]: undefined }));
+  // Students can drop both PDFs at once, in any order: try each parser and keep the one that fits.
+  async function read(file: File) {
+    let kind = "other" as Kind | "other";
     try {
       const text = await pdfText(file);
-      if (kind === "transcript") setTranscript(parseTranscript(text));
-      else {
+      try {
+        kind = "transcript";
+        setTranscript(parseTranscript(text));
+      } catch (e) {
+        if (!(e instanceof LadokError && e.code === "wrong_document")) throw e;
+        kind = "registration";
         const reg = parseRegistration(text);
         if (!reg.programme) throw new LadokError("unreadable", "no programme");
         setRegistration(reg);
       }
+      setErrors((prev) => ({ ...prev, [kind]: undefined, other: undefined }));
     } catch (e) {
       const code = e instanceof LadokError ? e.code : "unreadable";
+      // A Swedish PDF fails before we know which document it is.
+      if (code === "wrong_document" || code === "swedish") kind = "other";
       const message =
         code === "wrong_document"
-          ? t.errors.wrong_document[kind]
+          ? t.errors.other
           : e instanceof LadokError && e.message === "no programme"
             ? t.errors.no_programme
             : t.errors[code];
       setErrors((prev) => ({ ...prev, [kind]: message }));
       if (kind === "transcript") setTranscript(null);
-      else setRegistration(null);
+      if (kind === "registration") setRegistration(null);
     }
   }
+
+  const readAll = (files: FileList | null | undefined) => {
+    for (const f of files ?? []) void read(f);
+  };
 
   const merged =
     transcript && registration
@@ -187,28 +251,47 @@ export function LadokImport({
 
   const docCard = (kind: Kind, parsed: { courses: unknown[] } | null, hp: number) => (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-card">
-      <h2 className="font-display text-base font-bold">{t[kind].title}</h2>
-      <ol className="mt-2 space-y-1 text-sm text-muted-foreground">
-        {t[kind].steps.map((step) => (
-          <li key={step}>{step}</li>
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-display text-base font-bold">{t[kind].title}</h2>
+        {parsed && !errors[kind] ? (
+          <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-success">
+            <CheckCircle2 className="size-4" aria-hidden="true" />
+            {t.ok(parsed.courses.length, hp)}
+          </span>
+        ) : (
+          <span className="shrink-0 text-xs font-semibold text-muted-foreground">{t.waiting}</span>
+        )}
+      </div>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+        {t[kind].fields.map(([label, value]) => (
+          <Fragment key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-semibold">{value}</dd>
+          </Fragment>
         ))}
-      </ol>
-      <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-bold text-primary hover:bg-secondary">
-        <FileText className="size-4" aria-hidden="true" />
-        {t.choose}
-        <input
-          type="file"
-          accept="application/pdf"
-          className="sr-only"
-          onChange={(e) => void read(kind, e.target.files?.[0])}
-        />
-      </label>
-      {parsed && !errors[kind] && (
-        <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-success">
-          <CheckCircle2 className="size-4" aria-hidden="true" />
-          {t.ok(parsed.courses.length, hp)}
-        </p>
-      )}
+        <dt className="text-muted-foreground">{t.include}</dt>
+        <dd>
+          <ul className="space-y-1">
+            {t[kind].include.map(([label, on]) => (
+              <li
+                key={label}
+                className={`flex items-start gap-2 ${on ? "font-semibold" : "text-muted-foreground"}`}
+              >
+                {on ? (
+                  <SquareCheck
+                    className="mt-0.5 size-4 shrink-0 text-success"
+                    aria-label={t.tick}
+                  />
+                ) : (
+                  <Square className="mt-0.5 size-4 shrink-0" aria-label={t.untick} />
+                )}
+                {label}
+              </li>
+            ))}
+          </ul>
+        </dd>
+      </dl>
+      <p className="mt-3 text-xs font-semibold text-muted-foreground">{t.then}</p>
       {errors[kind] && (
         <p
           className="mt-2 flex items-start gap-2 text-sm font-semibold text-destructive"
@@ -243,6 +326,44 @@ export function LadokImport({
         "registration",
         registration,
         registration?.courses.reduce((s, c) => s + c.credits, 0) ?? 0,
+      )}
+
+      <label
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          readAll(e.dataTransfer.files);
+        }}
+        className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${dragging ? "border-primary bg-primary-soft" : "border-border hover:bg-secondary"}`}
+      >
+        <Upload className="size-6 text-primary" aria-hidden="true" />
+        <span className="font-display text-base font-bold">{t.drop}</span>
+        <span className="text-sm text-muted-foreground">{t.dropHint}</span>
+        <span className="mt-1 inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold text-primary">
+          <FileText className="size-4" aria-hidden="true" />
+          {t.choose}
+        </span>
+        <input
+          type="file"
+          accept="application/pdf"
+          multiple
+          className="sr-only"
+          onChange={(e) => {
+            readAll(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      {errors.other && (
+        <p className="flex items-start gap-2 text-sm font-semibold text-destructive" role="alert">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          {errors.other}
+        </p>
       )}
 
       {merged && registration?.programme && (

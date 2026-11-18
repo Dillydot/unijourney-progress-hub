@@ -244,7 +244,9 @@ export function Dashboard({
         {tab === "dashboard" && (
           <div className="mb-3 md:mb-5">
             <p className="text-xs font-bold text-primary">{t.academicYear}</p>
-            <h1 className="mt-0.5 font-display text-2xl font-bold md:text-4xl">{t.greeting}</h1>
+            <h1 className="mt-0.5 font-display text-2xl font-bold md:text-4xl">
+              {t.greeting(student.firstName)}
+            </h1>
             <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{t.intro}</p>
           </div>
         )}
