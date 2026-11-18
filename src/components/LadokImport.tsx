@@ -19,7 +19,7 @@ import {
   type Registration,
   type Transcript,
 } from "@/lib/ladok";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { toCourseRow } from "@/lib/student-view";
 
 type Lang = "en" | "sv";
@@ -231,7 +231,7 @@ export function LadokImport({
     setSaving(true);
     setSaveError(null);
     const p = registration.programme;
-    const { error } = await supabase.rpc("import_ladok", {
+    const { error } = await getSupabase().rpc("import_ladok", {
       p_profile: {
         display_name: name.trim() || null,
         programme_code: p.code,
