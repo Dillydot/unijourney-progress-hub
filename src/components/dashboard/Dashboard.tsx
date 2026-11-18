@@ -70,8 +70,8 @@ export function Dashboard({
   view: StudentView;
   lang: Lang;
   setLang: React.Dispatch<React.SetStateAction<Lang>>;
-  onReimport: () => void;
-  onSignOut: () => void;
+  onReimport?: () => void;
+  onSignOut?: () => void;
 }) {
   const { student, progress } = view;
   const planQuery = useQuery({
@@ -265,7 +265,7 @@ export function Dashboard({
             role="link"
             tabIndex={0}
             aria-label={t.viewFullProfile}
-            className="card-enter card-enter-delay mb-3 flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-card transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary md:mb-4 md:p-4"
+            className="card-enter card-enter-delay mb-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-card transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary md:mb-6 md:p-4"
           >
             <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary font-display text-sm font-bold text-primary-foreground">
               {student.initials}
@@ -300,7 +300,7 @@ export function Dashboard({
             role="link"
             tabIndex={0}
             aria-label={t.academicProgress}
-            className="card-enter scroll-mt-6 cursor-pointer rounded-2xl bg-primary p-4 text-primary-foreground shadow-brand transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary md:col-span-12 md:p-5"
+            className="card-enter mb-4 scroll-mt-6 cursor-pointer rounded-2xl bg-primary p-4 text-primary-foreground shadow-brand transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary md:mb-6 md:p-5"
           >
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
@@ -378,7 +378,7 @@ export function Dashboard({
 
         {/* Dashboard: next registration deadline + recent grades ------------------ */}
         {tab === "dashboard" && (
-          <div className="grid gap-3 md:grid-cols-12 md:gap-5">
+          <div className="grid gap-4 md:grid-cols-12 md:gap-6">
             {/* Next registration deadline ------------------------------------------ */}
             {deadline && (
               <section
@@ -426,7 +426,7 @@ export function Dashboard({
             {/* Recent grades ------------------------------------------------------- */}
             <section
               id="grades"
-              className="card-enter card-enter-delay-2 scroll-mt-6 rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-7 md:p-5"
+              className={`card-enter card-enter-delay-2 scroll-mt-6 rounded-2xl border border-border bg-card p-4 shadow-card md:p-5 ${deadline ? "md:col-span-7" : "md:col-span-12"}`}
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="section-label">{t.recentGrades}</p>
@@ -654,6 +654,7 @@ export function Dashboard({
               type="button"
               variant="outline"
               onClick={onReimport}
+              disabled={!onReimport}
               className="mt-4 h-11 w-full gap-2 rounded-xl md:w-auto md:min-w-44"
             >
               <FileUp className="size-4" aria-hidden="true" />
@@ -663,6 +664,7 @@ export function Dashboard({
               type="button"
               variant="outline"
               onClick={onSignOut}
+              disabled={!onSignOut}
               className="mt-4 h-11 w-full gap-2 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive md:ml-auto md:flex md:w-auto md:min-w-44"
             >
               <LogOut className="size-4" aria-hidden="true" />

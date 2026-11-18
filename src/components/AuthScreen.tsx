@@ -2,7 +2,7 @@ import { useState } from "react";
 import { GraduationCap, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 const copy = {
   en: {
@@ -35,7 +35,7 @@ export function AuthScreen({ lang }: { lang: "en" | "sv" }) {
     event.preventDefault();
     setState("sending");
     setError(null);
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await getSupabase().auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: window.location.origin },
     });
