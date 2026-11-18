@@ -348,3 +348,53 @@ export function nextDeadline(events: PlanEvent[], courses: PlanCourse[], today: 
     iso: `${e.date}T23:59:00`,
   };
 }
+
+export type NewsItem = {
+  title: string;
+  summary: string;
+  /** YYYY-MM-DD */
+  date: string;
+  href: string;
+  image?: string;
+  imageAlt?: string;
+};
+
+const SHORT_MONTHS = MONTHS.map((m) => m.slice(0, 3));
+const decode = (s: string) =>
+  s
+    .replace(/<[^>]+>/g, "")
+    .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .trim();
+
+/** News articles from KTH's news archive page (English "Nov 18, 2026" or Swedish "2026-11-18" dates). */
+export function newsFromPage(html: string): NewsItem[] {
+  const items: NewsItem[] = [];
+  for (const [, title = "", body = ""] of html.matchAll(
+    /<li>\s*<h2>([\s\S]*?)<\/h2>\s*<div class="clearfix">([\s\S]*?)<\/li>/g,
+  )) {
+    const rawDate = body.match(/class="date">\s*\S+ <span>([^<]+)<\/span>/)?.[1]?.trim() ?? "";
+    const en = rawDate.match(/^(\w{3}) (\d{1,2}), (\d{4})$/);
+    const date = en
+      ? `${en[3]}-${String(SHORT_MONTHS.indexOf(en[1] ?? "") + 1).padStart(2, "0")}-${(en[2] ?? "").padStart(2, "0")}`
+      : rawDate;
+    const href = body.match(/class="readMore"[\s\S]*?href="([^"]+)"/)?.[1];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date.includes("-00-") || !href) continue;
+    const img = body.match(/<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"/);
+    items.push({
+      title: decode(title),
+      summary: decode(body.match(/<p>([\s\S]*?)<\/p>/)?.[1] ?? ""),
+      date,
+      href: new URL(href, "https://www.kth.se").href,
+      ...(img?.[1]
+        ? { image: new URL(img[1], "https://www.kth.se").href, imageAlt: decode(img[2] ?? "") }
+        : {}),
+    });
+  }
+  if (!items.length) throw new Error("kth.se news page: no articles found");
+  return items;
+}

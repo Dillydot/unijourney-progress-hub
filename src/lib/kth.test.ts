@@ -4,6 +4,7 @@ import {
   detailsFromCourseStore,
   eventsFromPlan,
   examPeriodsFromPage,
+  newsFromPage,
   plannedCredits,
   nextDeadline,
   planFromProgrammeStore,
@@ -121,4 +122,21 @@ test("planned credits: mandatory courses not started, spanning courses counted o
   // ME2003 is mandatory, 6 + 1.5 over two periods; ME2620 is already registered; ME2016 is elective.
   expect(plannedCredits(plan, ["ME2620"])).toBe(7.5);
   expect(plannedCredits(plan, ["ME2620", "ME2003"])).toBe(0);
+});
+
+test("news articles from the KTH news archive, English and Swedish", () => {
+  const en = newsFromPage(fixture("kth-news-en.html"));
+  expect(en).toHaveLength(2);
+  expect(en[1]).toMatchObject({
+    title: "Disabling cells’ ‘clean-up crew’ could speed drug target production",
+    date: "2026-11-18",
+    href: "https://www.kth.se/en/om/nyheter/centrala-nyheter/disabling-cells-clean-up-crew-could-speed-drug-target-production-1.1509159",
+    imageAlt: "man in lab",
+  });
+  expect(en[1]?.image).toStartWith("https://www.kth.se/polopoly_fs/");
+  expect(en[1]?.summary).toStartWith("With an unusual genetic modification");
+  const sv = newsFromPage(fixture("kth-news-sv.html"));
+  expect(sv[0]).toMatchObject({ date: "2026-11-18" });
+  expect(sv[0]?.title).toStartWith("Fem nordiska universitet");
+  expect(() => newsFromPage("<html></html>")).toThrow();
 });

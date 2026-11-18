@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import {
   detailsFromCourseStore,
   examPeriodsFromPage,
+  newsFromPage,
   planFromProgrammeStore,
   readEmbeddedJson,
   withDetails,
@@ -30,6 +31,21 @@ export const getKthExamPeriods = createServerFn({ method: "GET" }).handler(async
     await page("https://www.kth.se/en/student/studier/schema/tentaperioder-1.278515"),
   ),
 );
+
+export const getKthNews = createServerFn({ method: "GET" })
+  .validator((input: { lang: "en" | "sv" }) => {
+    if (input.lang !== "en" && input.lang !== "sv") throw new Error("Invalid language");
+    return input;
+  })
+  .handler(async ({ data }) =>
+    newsFromPage(
+      await page(
+        data.lang === "sv"
+          ? "https://www.kth.se/om/nyheter/centrala-nyheter"
+          : "https://www.kth.se/en/om/nyheter/centrala-nyheter",
+      ),
+    ),
+  );
 
 export const getKthPlan = createServerFn({ method: "GET" })
   .validator((input: { programmeCode: string; term: string }) => {
