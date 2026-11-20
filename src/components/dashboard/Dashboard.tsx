@@ -1,13 +1,18 @@
+import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { CalendarScreen, type CalendarEvent } from "@/components/CalendarScreen";
 import {
   NewsScreen,
   NotificationPrefKey,
   defaultNotificationPrefs,
-  kthNews,
   newsCopy,
   profilePrefKeys,
 } from "@/components/dashboard/NewsScreen";
-import { PlanScreen } from "@/components/dashboard/PlanScreen";
+import {
+  PlanScreen,
+  degreeLabels,
+  emptyProgrammeSelection,
+  schoolNames,
+} from "@/components/dashboard/PlanScreen";
 import { ProgressGrouping, ProgressScreen } from "@/components/dashboard/ProgressScreen";
 import {
   CopyButton,
@@ -18,9 +23,15 @@ import {
   StatTile,
 } from "@/components/dashboard/parts";
 import { Button } from "@/components/ui/button";
-import { eventsFromPlan, nextDeadline as findNextDeadline, type ProgrammePlan } from "@/lib/kth";
+import {
+  eventsFromPlan,
+  nextDeadline as findNextDeadline,
+  termOf,
+  type ProgrammePlan,
+} from "@/lib/kth";
 import { buildNotifications } from "@/lib/notifications";
-import { getKthExamPeriods, getKthPlan } from "@/lib/kth-api";
+import { getKthExamPeriods, getKthPlan, getLatestKthNews } from "@/lib/kth-api";
+import { kthNewsArchive } from "@/lib/kth-news";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Lang, ui } from "@/lib/copy";
@@ -35,6 +46,7 @@ import {
   Check,
   CheckCheck,
   ChevronRight,
+  ExternalLink,
   FileUp,
   Globe,
   GraduationCap,
@@ -45,6 +57,8 @@ import {
   LogOut,
   Mail,
   Map,
+  MessageSquare,
+  Moon,
   Newspaper,
   TrendingUp,
   UserRound,
@@ -66,6 +80,7 @@ export function Dashboard({
   setLang,
   demoPlan,
   demoEvents,
+  initialTab = "dashboard",
   onReimport,
   onSignOut,
 }: {
@@ -74,7 +89,8 @@ export function Dashboard({
   setLang: React.Dispatch<React.SetStateAction<Lang>>;
   demoPlan?: ProgrammePlan;
   demoEvents?: CalendarEvent[];
-  onReimport?: () => void;
+  initialTab?: Tab;
+  onReimport?: (returnTab: Tab) => void;
   onSignOut?: () => void;
 }) {
   const { student, progress } = view;
@@ -147,7 +163,27 @@ export function Dashboard({
   const nc = newsCopy[lang];
   const [notifPrefs, setNotifPrefs] =
     useState<Record<NotificationPrefKey, boolean>>(defaultNotificationPrefs);
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [programmeSelection, setProgrammeSelection] = useState(emptyProgrammeSelection);
+  const { programme: profileProgramme, school, degree, cohort } = programmeSelection;
+  const profileProgrammeName =
+    lang === "sv" ? profileProgramme?.titleSv || profileProgramme?.title : profileProgramme?.title;
+  const profileDegree = degreeLabels[degree]?.[lang] ?? degree;
+  const profileSchool = schoolNames[school]?.[lang] ?? (school === "unlisted" ? "" : school);
+  const admissionYear = cohort.slice(0, 4);
+  const currentTerm = termOf(today);
+  const studyYear =
+    cohort && currentTerm >= cohort
+      ? Number(currentTerm.slice(0, 4)) -
+        Number(admissionYear) +
+        Number(currentTerm[4]! >= cohort[4]!)
+      : 0;
+  const newsQuery = useQuery({
+    queryKey: ["kth-latest-news", lang],
+    queryFn: () => getLatestKthNews({ data: lang }),
+    enabled: tab === "dashboard" || tab === "news",
+    staleTime: 30 * 60_000,
+  });
   const [periodFilter, setPeriodFilter] = useState("all");
   const [semesterFilter, setSemesterFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
@@ -160,6 +196,37 @@ export function Dashboard({
     setTab(next);
     window.scrollTo({ top: 0 });
   }
+
+  const ladokUpdateCard = (
+    <section className="rounded-2xl border border-primary/20 bg-primary-soft p-4 shadow-card sm:flex sm:items-center sm:justify-between sm:gap-5">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-card text-primary">
+          <FileUp className="size-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-display text-base font-bold">{t.ladokUpdateTitle}</h3>
+          <p className="mt-1 max-w-lg text-sm leading-snug text-muted-foreground">
+            {t.ladokUpdateDescription}
+          </p>
+        </div>
+      </div>
+      {onReimport ? (
+        <Button
+          type="button"
+          onClick={() => onReimport(tab)}
+          className="mt-3 min-h-11 w-full shrink-0 rounded-xl sm:mt-0 sm:w-auto"
+        >
+          {t.updateFromLadok}
+        </Button>
+      ) : (
+        <Button asChild className="mt-3 min-h-11 w-full shrink-0 rounded-xl sm:mt-0 sm:w-auto">
+          <Link to="/" search={{ login: true }}>
+            {t.ladokSignIn}
+          </Link>
+        </Button>
+      )}
+    </section>
+  );
 
   return (
     <div
@@ -399,6 +466,7 @@ export function Dashboard({
             plan={plan}
             lang={lang}
             t={t}
+            ladokUpdateCard={ladokUpdateCard}
             periodFilter={periodFilter}
             setPeriodFilter={setPeriodFilter}
             semesterFilter={semesterFilter}
@@ -476,32 +544,69 @@ export function Dashboard({
                 ))}
               </ul>
             </section>
-            <button
-              type="button"
-              onClick={() => go("news")}
-              className="card-enter flex min-w-0 flex-col gap-2 rounded-2xl border border-border bg-card p-4 text-left shadow-card transition-colors hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary md:col-span-12 md:p-5"
-            >
-              <span className="flex w-full items-center justify-between gap-3">
-                <span className="flex items-center gap-2 text-sm font-bold">
+            <section className="card-enter min-w-0 space-y-3 rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-12 md:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-sm font-bold">
                   <Newspaper className="size-4 shrink-0 text-primary" aria-hidden="true" />
                   {nc.latest}
-                </span>
-                <span className="flex items-center gap-1 text-xs font-bold text-primary">
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => go("news")}
+                  className="flex min-h-10 items-center gap-1 text-xs font-bold text-primary hover:underline"
+                >
                   {nc.viewAll}
                   <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
-                </span>
-              </span>
-              <span className="grid w-full gap-x-4 sm:grid-cols-2 lg:grid-cols-4">
-                {kthNews.slice(0, 4).map((item) => (
-                  <span key={item.id} className="min-w-0 border-t border-border py-2">
-                    <span className="block text-xs text-muted-foreground">{item.date}</span>
-                    <span className="mt-0.5 block text-sm font-semibold leading-snug">
-                      {item.title}
-                    </span>
-                  </span>
-                ))}
-              </span>
-            </button>
+                </button>
+              </div>
+              {newsQuery.isPending && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  {nc.loadingLatest}
+                </p>
+              )}
+              {newsQuery.isError && (
+                <a
+                  href={kthNewsArchive(lang)}
+                  className="text-sm font-semibold text-primary underline"
+                >
+                  {nc.readArchive}
+                </a>
+              )}
+              {newsQuery.data && (
+                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {newsQuery.data.slice(0, 4).map((item) => (
+                    <li key={item.url} className="min-w-0">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group flex h-full items-start gap-3 rounded-xl border border-border p-2.5 hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-primary sm:flex-col"
+                      >
+                        {item.image && (
+                          <img
+                            src={item.image}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="aspect-[4/3] w-20 shrink-0 rounded-lg bg-secondary object-cover sm:aspect-video sm:w-full"
+                          />
+                        )}
+                        <span className="min-w-0">
+                          <span className="block text-xs text-muted-foreground">{item.date}</span>
+                          <span className="mt-1 block text-sm font-semibold leading-snug group-hover:underline">
+                            {item.title}
+                          </span>
+                        </span>
+                        <ExternalLink
+                          className="ml-auto size-3.5 shrink-0 text-primary sm:hidden"
+                          aria-hidden="true"
+                        />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </div>
         )}
 
@@ -514,9 +619,12 @@ export function Dashboard({
             loading={planQuery.isLoading}
             failed={planQuery.isError}
             programmeCode={student.programmeCode}
+            programmeName={student.programme}
             programmeTerm={view.programmeTerm ?? ""}
             myCodes={view.courseCodes}
             demo={demo}
+            selection={programmeSelection}
+            setSelection={setProgrammeSelection}
           />
         )}
 
@@ -524,7 +632,9 @@ export function Dashboard({
           <CalendarScreen lang={lang} events={calendarEvents} />
         </div>
 
-        {tab === "news" && <NewsScreen lang={lang} />}
+        {tab === "news" && (
+          <NewsScreen lang={lang} stories={newsQuery.data ?? []} loading={newsQuery.isPending} />
+        )}
 
         {/* Profile --------------------------------------------------------------- */}
         {tab === "profile" && (
@@ -543,6 +653,8 @@ export function Dashboard({
                 {t.exampleData}
               </span>
             </div>
+
+            <div className="mb-3">{ladokUpdateCard}</div>
 
             <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-card">
               <div className="flex min-w-0 items-center gap-3">
@@ -566,6 +678,16 @@ export function Dashboard({
               </Button>
             </div>
 
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-card">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
+                  <Moon className="size-5" aria-hidden="true" />
+                </span>
+                <p className="text-sm font-bold">{t.darkMode}</p>
+              </div>
+              <ThemeSwitch label={t.darkMode} />
+            </div>
+
             <div className="grid gap-3 md:grid-cols-12 md:gap-4">
               <div className="card-enter card-enter-delay rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-5 md:p-5">
                 <div className="flex items-center gap-4">
@@ -576,9 +698,11 @@ export function Dashboard({
                     <h3 className="truncate font-display text-base font-bold">
                       {student.fullName}
                     </h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {student.degreeLevel} · {student.programmeCode}
-                    </p>
+                    {profileProgramme && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {profileDegree} · {profileProgramme.code}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -609,39 +733,58 @@ export function Dashboard({
                     </dd>
                   </div>
                 </dl>
-
-                <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3">
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground">{t.admissionYear}</p>
-                    <p className="mt-1 font-display text-lg font-bold">{student.admissionYear}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground">{t.studyYear}</p>
-                    <p className="mt-1 font-display text-lg font-bold">{student.studyYear}</p>
-                  </div>
-                </div>
               </div>
 
               <div className="card-enter card-enter-delay-2 rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-7 md:p-5">
                 <p className="section-label">{t.academicDetails}</p>
-                <div className="mt-2 divide-y divide-border">
-                  <DetailRow icon={Landmark} label={t.university} value={student.university} />
-                  <DetailRow
-                    icon={Building2}
-                    label={t.department}
-                    value={student.department}
-                    chip={student.departmentCode}
-                  />
-                  <DetailRow icon={GraduationCap} label={t.programme} value={student.programme} />
-                  <DetailRow icon={Hash} label={t.programmeCode} value={student.programmeCode} />
-                  <DetailRow icon={Award} label={t.degreeLevel} value={student.degreeLevel} />
-                  <DetailRow
-                    icon={CalendarDays}
-                    label={t.admissionYear}
-                    value={student.admissionYear}
-                  />
-                  <DetailRow icon={Layers} label={t.studyYear} value={student.studyYear} />
-                </div>
+                {profileProgramme ? (
+                  <div className="mt-2 divide-y divide-border">
+                    <DetailRow
+                      icon={Landmark}
+                      label={t.university}
+                      value="KTH Royal Institute of Technology"
+                    />
+                    {profileSchool && (
+                      <DetailRow
+                        icon={Building2}
+                        label={t.kthSchool}
+                        value={profileSchool}
+                        chip={school}
+                      />
+                    )}
+                    <DetailRow
+                      icon={GraduationCap}
+                      label={t.programme}
+                      value={profileProgrammeName ?? profileProgramme.title}
+                    />
+                    <DetailRow icon={Hash} label={t.programmeCode} value={profileProgramme.code} />
+                    <DetailRow icon={Award} label={t.degreeLevel} value={profileDegree} />
+                    {admissionYear && (
+                      <DetailRow
+                        icon={CalendarDays}
+                        label={t.admissionYear}
+                        value={admissionYear}
+                      />
+                    )}
+                    {studyYear > 0 && (
+                      <DetailRow icon={Layers} label={t.studyYear} value={t.yearN(studyYear)} />
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl bg-secondary p-3">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {t.selectProgrammePrompt}
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => go("plan")}
+                      className="mt-3 min-h-11 rounded-xl"
+                    >
+                      <Map className="size-4" aria-hidden="true" />
+                      {t.selectProgrammeAction}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="card-enter card-enter-delay-3 rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-5 md:p-5">
@@ -719,16 +862,6 @@ export function Dashboard({
             <Button
               type="button"
               variant="outline"
-              onClick={onReimport}
-              disabled={!onReimport}
-              className="mt-4 h-11 w-full gap-2 rounded-xl md:w-auto md:min-w-44"
-            >
-              <FileUp className="size-4" aria-hidden="true" />
-              {t.updateFromLadok}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
               onClick={onSignOut}
               disabled={!onSignOut}
               className="mt-4 h-11 w-full gap-2 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive md:ml-auto md:flex md:w-auto md:min-w-44"
@@ -736,6 +869,27 @@ export function Dashboard({
               <LogOut className="size-4" aria-hidden="true" />
               {t.logOut}
             </Button>
+            <section className="mt-4 flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 shadow-card sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex items-start gap-3">
+                <MessageSquare className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                <div>
+                  <h3 className="text-sm font-bold">{t.feedbackTitle}</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {t.feedbackDescription}
+                  </p>
+                </div>
+              </div>
+              <Button asChild variant="outline" className="min-h-11 shrink-0 rounded-xl">
+                <a
+                  href="https://github.com/Dillydot/unijourney-progress-hub/issues/new"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t.feedbackAction}
+                  <ExternalLink className="size-3.5" aria-hidden="true" />
+                </a>
+              </Button>
+            </section>
           </section>
         )}
       </main>

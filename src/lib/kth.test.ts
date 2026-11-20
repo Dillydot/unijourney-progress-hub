@@ -10,6 +10,7 @@ import {
   readEmbeddedJson,
   termOf,
   withDetails,
+  withVerifiedPeriods,
 } from "./kth";
 
 // Trimmed copies of the public pages kth.se/student/kurser/program/TTBEM/20252/arskurs1 and kurs/ME2003.
@@ -171,4 +172,56 @@ test("keeps syllabus courses whose study period or teaching dates have not been 
     credits: 15,
   });
   expect(eventsFromPlan(plan, []).map((event) => event.code)).toEqual(["ME210X", "ME210X"]);
+});
+
+test("uses published periods only for an unambiguous offering in the same cohort and term", () => {
+  const plan = planFromProgrammeStore({
+    programmeName: "Machine Design",
+    lengthInStudyYears: 2,
+    curriculums: [
+      {
+        studyYears: [
+          {
+            yearNumber: 1,
+            courses: [
+              {
+                kod: "MF2010",
+                benamning: "Component Design",
+                Valvillkor: "O",
+                omfattning: { number: 6 },
+                Tillfallesperioder: [
+                  {
+                    ForstaUndervisningsdatum: "2026-08-24",
+                    SistaUndervisningsdatum: "2027-01-11",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  const offering = {
+    round_application_code: "10585",
+    round_periods: "<p>Autumn 2026: P2 (6 hp)</p>",
+    round_part_of_programme:
+      '<a href="/student/kurser/program/TMSKM/20262/arskurs1">Machine Design</a>',
+  };
+  const details = (rounds: (typeof offering)[]) => ({
+    MF2010: detailsFromCourseStore({ courseData: { roundsBySemester: { "20262": rounds } } }),
+  });
+  expect(withVerifiedPeriods(plan, details([offering]), "TMSKM", "20262").courses[0]?.period).toBe(
+    "P2",
+  );
+  expect(withVerifiedPeriods(plan, details([offering]), "TMSKM", "20272")).toEqual(plan);
+  expect(withVerifiedPeriods(plan, details([offering, offering]), "TMSKM", "20262")).toEqual(plan);
+  expect(
+    withVerifiedPeriods(
+      plan,
+      details([{ ...offering, round_periods: "P2 (4 hp)" }]),
+      "TMSKM",
+      "20262",
+    ),
+  ).toEqual(plan);
 });

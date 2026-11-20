@@ -1,6 +1,6 @@
 import { AuthScreen } from "@/components/AuthScreen";
 import { LadokImport } from "@/components/LadokImport";
-import { Dashboard } from "@/components/dashboard/Dashboard";
+import { Dashboard, type Tab } from "@/components/dashboard/Dashboard";
 import { Button } from "@/components/ui/button";
 import { Lang } from "@/lib/copy";
 import { physicsDemoEvents, physicsDemoPlan, physicsDemoView } from "@/lib/physics-demo";
@@ -84,6 +84,7 @@ function AuthenticatedDashboard({ session, lang, setLang }: LanguageProps & { se
   const [data, setData] = useState<StoredData | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reimport, setReimport] = useState(false);
+  const [returnTab, setReturnTab] = useState<Tab>("dashboard");
 
   async function load() {
     setLoadError(null);
@@ -122,8 +123,7 @@ function AuthenticatedDashboard({ session, lang, setLang }: LanguageProps & { se
         lang={lang}
         defaultName={data?.profile.display_name ?? ""}
         onDone={() => {
-          setReimport(false);
-          void load();
+          void load().finally(() => setReimport(false));
         }}
         onCancel={data ? () => setReimport(false) : undefined}
       />
@@ -139,7 +139,11 @@ function AuthenticatedDashboard({ session, lang, setLang }: LanguageProps & { se
       )}
       lang={lang}
       setLang={setLang}
-      onReimport={() => setReimport(true)}
+      initialTab={returnTab}
+      onReimport={(tab) => {
+        setReturnTab(tab);
+        setReimport(true);
+      }}
       onSignOut={() => void supabase.auth.signOut()}
     />
   );

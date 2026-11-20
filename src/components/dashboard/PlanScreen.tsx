@@ -1,12 +1,12 @@
 import { getKthPlan, getKthProgrammes, getKthProgrammeTerms } from "@/lib/kth-api";
 import { kthSyllabusUrl } from "@/lib/kth-programmes";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { Lang, ProgressCopy } from "@/lib/copy";
 import type { PlanCourse, ProgrammePlan } from "@/lib/kth";
 import { ExternalLink, Info } from "lucide-react";
 
-const degreeLabels: Record<string, Record<Lang, string>> = {
+export const degreeLabels: Record<string, Record<Lang, string>> = {
   TARKU: { en: "Architecture", sv: "Arkitekt" },
   CING: { en: "Master of Science in Engineering", sv: "Civilingenjör" },
   YHOGE: { en: "Bachelor of Science in Engineering", sv: "Högskoleingenjör" },
@@ -18,7 +18,7 @@ const degreeLabels: Record<string, Record<Lang, string>> = {
   OVRIGA: { en: "Other programmes", sv: "Övriga program" },
 };
 
-const schoolNames: Record<string, Record<Lang, string>> = {
+export const schoolNames: Record<string, Record<Lang, string>> = {
   ABE: {
     en: "School of Architecture and the Built Environment",
     sv: "Skolan för arkitektur och samhällsbyggnad",
@@ -41,6 +41,20 @@ const schoolNames: Record<string, Record<Lang, string>> = {
   },
 };
 
+export type ProgrammeSelection = {
+  degree: string;
+  school: string;
+  programme: { code: string; title: string; titleSv: string } | null;
+  cohort: string;
+};
+
+export const emptyProgrammeSelection: ProgrammeSelection = {
+  degree: "",
+  school: "",
+  programme: null,
+  cohort: "",
+};
+
 export function PlanScreen({
   lang,
   t,
@@ -48,9 +62,12 @@ export function PlanScreen({
   loading: homeLoading,
   failed: homeFailed,
   programmeCode,
+  programmeName,
   programmeTerm,
   myCodes,
   demo,
+  selection,
+  setSelection,
 }: {
   lang: Lang;
   t: ProgressCopy;
@@ -58,14 +75,15 @@ export function PlanScreen({
   loading: boolean;
   failed: boolean;
   programmeCode: string;
+  programmeName: string;
   programmeTerm: string;
   myCodes: string[];
   demo: boolean;
+  selection: ProgrammeSelection;
+  setSelection: Dispatch<SetStateAction<ProgrammeSelection>>;
 }) {
-  const [degree, setDegree] = useState("");
-  const [school, setSchool] = useState("");
-  const [code, setCode] = useState("");
-  const [cohort, setCohort] = useState("");
+  const { degree, school, programme: selectedProgramme, cohort } = selection;
+  const code = selectedProgramme?.code ?? "";
   const catalogue = useQuery({
     queryKey: ["kth-programmes"],
     queryFn: () => getKthProgrammes(),
@@ -80,7 +98,7 @@ export function PlanScreen({
   const programmeOptions = degreeProgrammes.filter(
     (programme) => (programme.school || "unlisted") === school,
   );
-  const nameOf = (programme: (typeof options)[number]) =>
+  const nameOf = (programme: NonNullable<ProgrammeSelection["programme"]>) =>
     (lang === "sv" ? programme.titleSv : programme.title) || programme.title;
 
   const cohorts = useQuery({
@@ -100,13 +118,12 @@ export function PlanScreen({
   const plan = code ? selectedPlan.data : homePlan;
   const loading = code ? cohorts.isLoading || selectedPlan.isLoading : homeLoading;
   const failed = code ? cohorts.isError || selectedPlan.isError : homeFailed;
-  const selectedProgramme = programmeOptions.find((programme) => programme.code === code);
   const syllabusCode = code || (!demo && programmeCode !== "—" ? programmeCode : "");
   const syllabusTerm = code ? term : programmeTerm;
 
   const semesters = [
-    { label: t.autumnSemester, periods: ["P1", "P2"] },
-    { label: t.springSemester, periods: ["P3", "P4"] },
+    { label: t.autumnSemester, season: "Autumn", periods: ["P1", "P2"] },
+    { label: t.springSemester, season: "Spring", periods: ["P3", "P4"] },
   ];
   const registered = new Set(myCodes);
 
@@ -142,22 +159,38 @@ export function PlanScreen({
 
   return (
     <section id="courses" className="card-enter scroll-mt-6 space-y-3">
-      <header>
-        <p className="section-label">{code || programmeCode}</p>
-        <h1 className="mt-1 font-display text-2xl font-bold md:text-3xl">{t.planTitle}</h1>
-        {(selectedProgramme || plan) && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {selectedProgramme ? nameOf(selectedProgramme) : plan?.name}
+      <header className="rounded-2xl border border-primary/20 bg-primary-soft px-4 py-4 sm:px-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="section-label text-primary">
+            {code ? t.browseKthProgrammes : demo ? t.demoProgrammePlan : t.planTitle}
           </p>
+          {(code || programmeCode !== "—") && (
+            <span className="rounded-lg bg-primary px-2.5 py-1 text-xs font-extrabold text-primary-foreground">
+              {code || programmeCode}
+            </span>
+          )}
+        </div>
+        <h1 className="mt-2 font-display text-2xl leading-tight font-bold wrap-anywhere md:text-3xl">
+          {selectedProgramme ? nameOf(selectedProgramme) : plan?.name || programmeName}
+        </h1>
+        {code && (
+          <button
+            type="button"
+            onClick={() => setSelection(emptyProgrammeSelection)}
+            className="mt-1 mr-4 inline-flex min-h-10 items-center text-sm font-semibold text-primary hover:underline"
+          >
+            {demo ? t.demoProgrammePlan : t.planTitle} · {programmeCode}
+          </button>
         )}
         {syllabusCode && (
           <a
             href={kthSyllabusUrl(syllabusCode, syllabusTerm, lang)}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+            className="mt-1 inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
           >
             {t.officialSyllabus}
+            {code && term ? ` · ${term.slice(0, 4)}` : ""}
             <ExternalLink className="size-4" aria-hidden="true" />
           </a>
         )}
@@ -171,12 +204,7 @@ export function PlanScreen({
             value={degree}
             placeholder={t.chooseDegree}
             disabled={!catalogue.data}
-            onChange={(value) => {
-              setDegree(value);
-              setSchool("");
-              setCode("");
-              setCohort("");
-            }}
+            onChange={(value) => setSelection({ ...emptyProgrammeSelection, degree: value })}
           >
             {degrees.map((value) => (
               <option key={value} value={value}>
@@ -189,11 +217,9 @@ export function PlanScreen({
             value={school}
             placeholder={t.chooseSchool}
             disabled={!degree}
-            onChange={(value) => {
-              setSchool(value);
-              setCode("");
-              setCohort("");
-            }}
+            onChange={(value) =>
+              setSelection({ ...emptyProgrammeSelection, degree, school: value })
+            }
           >
             {schools.map((value) => {
               const name = schoolNames[value]?.[lang];
@@ -209,10 +235,14 @@ export function PlanScreen({
             value={code}
             placeholder={t.chooseProgramme}
             disabled={!school}
-            onChange={(value) => {
-              setCode(value);
-              setCohort("");
-            }}
+            onChange={(value) =>
+              setSelection({
+                degree,
+                school,
+                programme: programmeOptions.find((programme) => programme.code === value) ?? null,
+                cohort: "",
+              })
+            }
           >
             {programmeOptions
               .sort((a, b) => nameOf(a).localeCompare(nameOf(b), lang))
@@ -224,10 +254,10 @@ export function PlanScreen({
           </ProgrammeSelect>
           <ProgrammeSelect
             label={t.admissionCohort}
-            value={term}
+            value={cohort}
             placeholder={t.chooseCohort}
             disabled={!cohorts.data?.length}
-            onChange={setCohort}
+            onChange={(value) => setSelection((current) => ({ ...current, cohort: value }))}
           >
             {cohorts.data?.map((value) => (
               <option key={value} value={value}>
@@ -279,7 +309,12 @@ export function PlanScreen({
             const yearCourses = plan.courses.filter((course) => course.year === year);
             const yearHeading = `plan-year-${year}`;
             const otherCourses = yearCourses.filter(
-              (course) => !semesters.some(({ periods }) => periods.includes(course.period)),
+              (course) =>
+                !semesters.some(
+                  ({ periods, season }) =>
+                    periods.includes(course.period) ||
+                    (!course.period && course.semester.startsWith(season)),
+                ),
             );
 
             return (
@@ -295,9 +330,14 @@ export function PlanScreen({
                   {t.yearN(year)}
                 </h2>
                 <div className="grid divide-y divide-border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-                  {semesters.map(({ label, periods }) => {
+                  {semesters.map(({ label, season, periods }) => {
+                    const unconfirmed = yearCourses.filter(
+                      (course) => !course.period && course.semester.startsWith(season),
+                    );
                     const calendarYear = yearCourses
-                      .find((course) => periods.includes(course.period))
+                      .find(
+                        (course) => periods.includes(course.period) || unconfirmed.includes(course),
+                      )
                       ?.semester.match(/\b\d{4}\b/)?.[0];
 
                     return (
@@ -331,6 +371,14 @@ export function PlanScreen({
                             );
                           })}
                         </div>
+                        {unconfirmed.length > 0 && (
+                          <section className="space-y-2 rounded-lg bg-secondary/55 p-2">
+                            <h4 className="text-sm font-bold">{t.unconfirmedStudyPeriod}</h4>
+                            <div className="grid gap-2 min-[380px]:grid-cols-2">
+                              {renderCourseGroups(unconfirmed)}
+                            </div>
+                          </section>
+                        )}
                       </section>
                     );
                   })}

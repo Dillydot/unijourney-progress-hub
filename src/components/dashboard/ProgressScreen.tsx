@@ -21,6 +21,7 @@ export function ProgressScreen({
   plan,
   lang,
   t,
+  ladokUpdateCard,
   periodFilter,
   setPeriodFilter,
   semesterFilter,
@@ -36,6 +37,7 @@ export function ProgressScreen({
   plan: ProgrammePlan | undefined;
   lang: Lang;
   t: ProgressCopy;
+  ladokUpdateCard: React.ReactNode;
   periodFilter: string;
   setPeriodFilter: (value: string) => void;
   semesterFilter: string;
@@ -176,6 +178,8 @@ export function ProgressScreen({
           {t.exampleData}
         </span>
       </div>
+
+      {ladokUpdateCard}
 
       <section className="card-enter card-enter-delay rounded-2xl bg-primary p-4 text-primary-foreground shadow-brand md:p-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">

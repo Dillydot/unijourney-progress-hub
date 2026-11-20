@@ -1,20 +1,25 @@
-import { Lang } from "@/lib/copy";
-import { ExternalLink } from "lucide-react";
+import type { Lang } from "@/lib/copy";
+import { getKthNewsThemes, getKthThemeNews } from "@/lib/kth-api";
+import { kthNewsArchive, kthNewsThemeUrl, type KthNewsStory } from "@/lib/kth-news";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-
-export type NewsCategory = "research" | "education" | "campus" | "innovation";
+import { ExternalLink } from "lucide-react";
 
 export const newsCopy = {
   en: {
     label: "KTH News",
     title: "News from KTH",
+    themes: "News themes",
+    allNews: "Latest news",
+    openTheme: "Open this theme on KTH",
+    themesUnavailable: "Could not load KTH’s news themes.",
+    themeUnavailable: "No articles are available here. Open the theme on KTH to browse it.",
     latest: "Latest news",
+    loadingLatest: "Loading news from KTH…",
+    readArchive: "Open the KTH news archive",
     viewAll: "View all news",
-    intro:
-      "The latest stories from KTH. Choose which notifications you want on the Profile screen.",
     notifyTitle: "Notify me about",
     notifyIntro: "Choose which notifications you want to receive.",
-    all: "All",
     on: "On",
     off: "Off",
     prefs: {
@@ -27,22 +32,21 @@ export const newsCopy = {
       application: "Application",
     },
     read: "Read on kth.se",
-    cats: {
-      research: "Research",
-      education: "Education",
-      campus: "Campus life",
-      innovation: "Innovation",
-    },
   },
   sv: {
     label: "KTH-nyheter",
     title: "Nyheter från KTH",
+    themes: "Nyhetsteman",
+    allNews: "Senaste nyheterna",
+    openTheme: "Öppna temat på KTH",
+    themesUnavailable: "Det gick inte att hämta KTH:s nyhetsteman.",
+    themeUnavailable: "Inga artiklar kan visas här. Öppna temat på KTH för att läsa mer.",
     latest: "Senaste nyheterna",
+    loadingLatest: "Hämtar nyheter från KTH…",
+    readArchive: "Öppna KTH:s nyhetsarkiv",
     viewAll: "Visa alla nyheter",
-    intro: "De senaste nyheterna från KTH. Välj vilka notiser du vill få på profilsidan.",
     notifyTitle: "Notiser om",
     notifyIntro: "Välj vilka notiser du vill få.",
-    all: "Alla",
     on: "På",
     off: "Av",
     prefs: {
@@ -55,12 +59,6 @@ export const newsCopy = {
       application: "Ansökan",
     },
     read: "Läs på kth.se",
-    cats: {
-      research: "Forskning",
-      education: "Utbildning",
-      campus: "Campusliv",
-      innovation: "Innovation",
-    },
   },
 } as const;
 
@@ -86,130 +84,122 @@ export const profilePrefKeys: NotificationPrefKey[] = [
   "innovation",
 ];
 
-export const kthNews: Array<{
-  id: number;
-  category: NewsCategory;
-  date: string;
-  title: string;
-  summary: string;
-  isNew?: boolean;
-}> = [
-  {
-    id: 1,
-    category: "research",
-    date: "8 Oct 2026",
-    isNew: true,
-    title: "New battery material could double storage capacity",
-    summary:
-      "KTH researchers present a sodium-based material that may make grid storage cheaper and more sustainable.",
-  },
-  {
-    id: 2,
-    category: "innovation",
-    date: "7 Oct 2026",
-    isNew: true,
-    title: "KTH Innovation opens applications for autumn idea programme",
-    summary:
-      "Students with a business idea can apply for coaching, funding and workspace before 30 October.",
-  },
-  {
-    id: 3,
-    category: "education",
-    date: "5 Oct 2026",
-    title: "Course registration for study period 3 opens soon",
-    summary: "Remember to register for spring courses between 15 October and 15 November in Ladok.",
-  },
-  {
-    id: 4,
-    category: "campus",
-    date: "3 Oct 2026",
-    title: "Nobel Week lecture series comes to KTH Campus",
-    summary:
-      "Open lectures with Nobel laureates in Q-huset throughout December — free for all students.",
-  },
-  {
-    id: 5,
-    category: "research",
-    date: "30 Sep 2026",
-    title: "AI model helps predict traffic congestion in Stockholm",
-    summary:
-      "A joint project with the City of Stockholm uses machine learning to cut commuting times.",
-  },
-  {
-    id: 6,
-    category: "campus",
-    date: "26 Sep 2026",
-    title: "New study spaces open in the KTH Library",
-    summary:
-      "Over 200 new seats, group rooms and quiet zones are now available on the Valhallavägen campus.",
-  },
-];
-
-export function NewsScreen({ lang }: { lang: Lang }) {
+export function NewsScreen({
+  lang,
+  stories,
+  loading,
+}: {
+  lang: Lang;
+  stories: KthNewsStory[];
+  loading: boolean;
+}) {
   const c = newsCopy[lang];
-  const [filter, setFilter] = useState<NewsCategory | "all">("all");
-  const cats = Object.keys(c.cats) as NewsCategory[];
-  const items = kthNews.filter((n) => filter === "all" || n.category === filter);
+  const [theme, setTheme] = useState("");
+  const themes = useQuery({
+    queryKey: ["kth-news-themes", lang],
+    queryFn: () => getKthNewsThemes({ data: lang }),
+    staleTime: 30 * 60_000,
+  });
+  const themeNews = useQuery({
+    queryKey: ["kth-news-theme", lang, theme],
+    queryFn: () => getKthThemeNews({ data: { lang, slug: theme } }),
+    enabled: Boolean(theme),
+    staleTime: 30 * 60_000,
+  });
+  const items = theme ? (themeNews.data ?? []) : stories;
+  const pending = theme ? themeNews.isPending : loading;
 
   return (
-    <section id="news" className="card-enter scroll-mt-6 space-y-3 md:col-span-12">
-      <div>
-        <div className="flex items-center gap-2">
-          <p className="section-label">{c.label}</p>
-          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-            Example data
-          </span>
-        </div>
-        <h1 className="mt-1 font-display text-xl font-bold md:text-2xl">{c.title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{c.intro}</p>
-      </div>
+    <section id="news" className="card-enter scroll-mt-6 space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-display text-2xl font-bold md:text-3xl">{c.title}</h1>
+        <a
+          href={kthNewsArchive(lang)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary hover:underline"
+        >
+          {c.readArchive}
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+        </a>
+      </header>
 
-      <div className="flex flex-wrap gap-1.5 rounded-2xl bg-secondary p-1.5">
-        {(["all", ...cats] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            aria-pressed={filter === k}
-            onClick={() => setFilter(k)}
-            className={`min-h-10 rounded-full px-3 py-1.5 text-xs font-semibold touch-manipulation ${filter === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
-          >
-            {k === "all" ? c.all : c.cats[k]}
-          </button>
-        ))}
-      </div>
+      <label className="block max-w-sm space-y-1.5">
+        <span className="block text-sm font-bold">{c.themes}</span>
+        <select
+          value={theme}
+          onChange={(event) => setTheme(event.target.value)}
+          className="h-11 w-full rounded-xl border border-border bg-card px-3 text-base focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          <option value="">{c.allNews}</option>
+          {themes.data?.map(({ slug, title }) => (
+            <option key={slug} value={slug}>
+              {title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {themes.isError && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {c.themesUnavailable}
+        </p>
+      )}
+      {theme && (
+        <a
+          href={kthNewsThemeUrl(lang, theme)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-primary hover:underline"
+        >
+          {c.openTheme}
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+        </a>
+      )}
+      {theme && !pending && !items.length && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {c.themeUnavailable}
+        </p>
+      )}
 
-      <ul className="grid gap-3 md:grid-cols-2">
-        {items.map((n) => (
-          <li
-            key={n.id}
-            className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-card"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="rounded-full bg-primary-soft px-2 py-0.5 font-semibold text-primary">
-                {c.cats[n.category]}
-              </span>
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                {n.isNew && <span className="size-2 rounded-full bg-success" aria-label="New" />}
-                {n.date}
-              </span>
-            </div>
-            <h3 className="mt-1.5 text-sm font-bold leading-snug">{n.title}</h3>
-            <p className="mt-1 text-sm leading-5 text-muted-foreground">{n.summary}</p>
-            <a
-              href={
-                lang === "sv"
-                  ? "https://www.kth.se/aktuellt/nyheter"
-                  : "https://www.kth.se/en/aktuellt/nyheter"
-              }
-              target="_blank"
-              rel="noreferrer"
-              className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary"
-            >
-              {c.read} <ExternalLink className="size-3.5" aria-hidden="true" />
-            </a>
-          </li>
-        ))}
-      </ul>
+      {pending && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {c.loadingLatest}
+        </p>
+      )}
+      {items.length > 0 && (
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((story) => (
+            <li key={story.url} className="min-w-0">
+              <a
+                href={story.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {story.image && (
+                  <img
+                    src={story.image}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="aspect-video w-full bg-secondary object-cover"
+                  />
+                )}
+                <div className="flex flex-1 flex-col gap-2 p-4">
+                  {story.date && <p className="text-xs text-muted-foreground">{story.date}</p>}
+                  <h2 className="text-base leading-snug font-bold group-hover:underline">
+                    {story.title}
+                  </h2>
+                  <span className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                    {c.read}
+                    <ExternalLink className="size-3.5" aria-hidden="true" />
+                  </span>
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

@@ -244,9 +244,10 @@ export function LadokImport({
       },
       p_courses: merged.map(toCourseRow),
     });
-    setSaving(false);
-    if (error) setSaveError(error.message);
-    else onDone();
+    if (error) {
+      setSaving(false);
+      setSaveError(error.message);
+    } else onDone();
   }
 
   const docCard = (kind: Kind, parsed: { courses: unknown[] } | null, hp: number) => (

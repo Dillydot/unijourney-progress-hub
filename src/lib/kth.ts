@@ -29,9 +29,17 @@ export type PlanCourse = {
 
 /** `notes`: the programme's own rules, e.g. how many elective courses to take. */
 export type ProgrammePlan = { name: string; years: number; courses: PlanCourse[]; notes: string[] };
+type PublishedCourseRound = {
+  term: string;
+  applicationCode: string;
+  programmes: string[];
+  periods: { period: string; credits: number }[];
+};
+
 export type CourseDetails = {
   examiner?: string;
   examinerUrl?: string;
+  publishedRounds?: PublishedCourseRound[];
   /** TimeEdit schedule per course round, keyed by application code. */
   rounds: Record<string, { scheduleUrl?: string; location?: string; language?: string }>;
 };
@@ -105,18 +113,38 @@ export function planFromProgrammeStore(raw: unknown): ProgrammePlan {
             ? Number(start.slice(0, 4))
             : Number(start.slice(0, 4)) - 1;
         const periods = round?.Lasperiodsfordelning ?? [];
+        const startMonth = Number(start.slice(5, 7));
+        const endMonth = Number(end.slice(5, 7));
+        const calendarYear = Number(start.slice(0, 4));
+        const endYear = Number(end.slice(0, 4));
+        const autumn =
+          startMonth >= 8 &&
+          ((endYear === calendarYear && endMonth >= startMonth) ||
+            (endYear === calendarYear + 1 && endMonth === 1));
+        const spring =
+          startMonth >= 1 &&
+          startMonth <= 6 &&
+          endYear === calendarYear &&
+          endMonth >= startMonth &&
+          endMonth <= 6;
+        const datedSemester = autumn
+          ? `Autumn ${calendarYear}`
+          : spring
+            ? `Spring ${calendarYear}`
+            : "";
         const allocations = periods.length
           ? periods
           : [{ Lasperiodskod: "", Omfattningsvarde: c.omfattning?.number ?? 0 }];
         for (const p of allocations)
           courses.push({
             year: year.yearNumber,
-            semester: start
-              ? ["P1", "P2"].includes(p.Lasperiodskod) ||
-                (!p.Lasperiodskod && Number(start.slice(5, 7)) >= 7)
-                ? `Autumn ${startYear}`
-                : `Spring ${startYear + 1}`
-              : "",
+            semester: !p.Lasperiodskod
+              ? datedSemester
+              : start
+                ? ["P1", "P2"].includes(p.Lasperiodskod)
+                  ? `Autumn ${startYear}`
+                  : `Spring ${startYear + 1}`
+                : "",
             period: p.Lasperiodskod,
             kind: c.Valvillkor === "O" ? "mandatory" : "elective",
             code: c.kod,
@@ -144,6 +172,8 @@ type CourseStore = {
       Array<{
         round_application_code?: string;
         round_schedule?: string;
+        round_periods?: string;
+        round_part_of_programme?: string;
         round_course_place?: string;
         round_tutoring_language?: string;
       }>
@@ -157,18 +187,85 @@ export function detailsFromCourseStore(raw: unknown): CourseDetails {
   // First examiner only: '<p class="person"> ... <a href="/profile/kappen/">Philip Kappen</a>'
   const person = html.match(/<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/);
   const rounds: CourseDetails["rounds"] = {};
-  for (const list of Object.values(data?.roundsBySemester ?? {}))
-    for (const r of list)
+  const publishedRounds: PublishedCourseRound[] = [];
+  for (const [term, list] of Object.entries(data?.roundsBySemester ?? {}))
+    for (const r of list) {
+      const label = (r.round_periods ?? "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ");
+      const periods = [
+        ...label.matchAll(/\b(P[1-4])\s*\(\s*(\d+(?:[.,]\d+)?)\s*(?:hp|credits?)\s*\)/gi),
+      ];
+      if (periods.length && (label.match(/\bP\d+\b/gi) ?? []).length === periods.length) {
+        publishedRounds.push({
+          term,
+          applicationCode: r.round_application_code ?? "",
+          programmes: [
+            ...(r.round_part_of_programme ?? "").matchAll(
+              /href="(?:https:\/\/www\.kth\.se)?(\/student\/kurser\/program\/[^"#?]+)(?:[?#][^"]*)?"/g,
+            ),
+          ].map((match) => match[1]!),
+          periods: periods.map((match) => ({
+            period: match[1]!.toUpperCase(),
+            credits: Number(match[2]!.replace(",", ".")),
+          })),
+        });
+      }
+
       if (r.round_application_code)
         rounds[r.round_application_code] = {
           ...(r.round_schedule ? { scheduleUrl: r.round_schedule } : {}),
           ...(r.round_course_place ? { location: r.round_course_place } : {}),
           ...(r.round_tutoring_language ? { language: r.round_tutoring_language } : {}),
         };
+    }
   return {
+    ...(publishedRounds.length ? { publishedRounds } : {}),
     ...(person?.[2] ? { examiner: person[2].trim() } : {}),
     ...(person?.[1] ? { examinerUrl: new URL(person[1], "https://www.kth.se").href } : {}),
     rounds,
+  };
+}
+
+export function withVerifiedPeriods(
+  plan: ProgrammePlan,
+  details: Record<string, CourseDetails>,
+  programmeCode: string,
+  admissionTerm: string,
+): ProgrammePlan {
+  return {
+    ...plan,
+    courses: plan.courses.flatMap((course) => {
+      if (course.period || !course.semester || course.credits <= 0) return [course];
+
+      const semester = /^(Autumn|Spring) (\d{4})$/.exec(course.semester);
+      if (!semester) return [course];
+      const autumn = semester[1] === "Autumn";
+      const term = `${semester[2]}${autumn ? 2 : 1}`;
+      const programmePath = `/student/kurser/program/${encodeURIComponent(programmeCode)}/${admissionTerm}/arskurs${course.year}`;
+      const matches = details[course.code]?.publishedRounds?.filter(
+        (round) =>
+          round.term === term &&
+          (course.applicationCode
+            ? round.applicationCode === course.applicationCode
+            : round.programmes.includes(programmePath)),
+      );
+      if (matches?.length !== 1) return [course];
+
+      const periods = matches[0]!.periods;
+      const allowedPeriods = autumn ? ["P1", "P2"] : ["P3", "P4"];
+      if (
+        periods.some(({ period, credits }) => !allowedPeriods.includes(period) || credits <= 0) ||
+        new Set(periods.map(({ period }) => period)).size !== periods.length ||
+        Math.abs(periods.reduce((sum, period) => sum + period.credits, 0) - course.credits) > 0.001
+      )
+        return [course];
+
+      return periods.map(({ period, credits }) => ({
+        ...course,
+        period,
+        credits,
+        spansTwoPeriods: periods.length > 1,
+      }));
+    }),
   };
 }
 
