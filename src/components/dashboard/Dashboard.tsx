@@ -1,4 +1,5 @@
-import { CalendarScreen } from "@/components/CalendarScreen";
+import { ThemeSwitch } from "@/components/ThemeSwitch";
+import { CalendarScreen, type CalendarEvent } from "@/components/CalendarScreen";
 import {
   NewsScreen,
   NotificationPrefKey,
@@ -6,7 +7,12 @@ import {
   newsCopy,
   profilePrefKeys,
 } from "@/components/dashboard/NewsScreen";
-import { PlanScreen } from "@/components/dashboard/PlanScreen";
+import {
+  PlanScreen,
+  degreeLabels,
+  emptyProgrammeSelection,
+  schoolNames,
+} from "@/components/dashboard/PlanScreen";
 import { ProgressGrouping, ProgressScreen } from "@/components/dashboard/ProgressScreen";
 import {
   CopyButton,
@@ -17,12 +23,19 @@ import {
   StatTile,
 } from "@/components/dashboard/parts";
 import { Button } from "@/components/ui/button";
-import { eventsFromPlan, nextDeadline as findNextDeadline } from "@/lib/kth";
+import {
+  eventsFromPlan,
+  nextDeadline as findNextDeadline,
+  termOf,
+  type ProgrammePlan,
+} from "@/lib/kth";
 import { buildNotifications } from "@/lib/notifications";
-import { getKthExamPeriods, getKthPlan } from "@/lib/kth-api";
+import { getKthExamPeriods, getKthPlan, getLatestKthNews } from "@/lib/kth-api";
+import { kthNewsArchive } from "@/lib/kth-news";
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Lang, ui } from "@/lib/copy";
-import { Grade, StudentView } from "@/lib/student-view";
+import { Grade, StudentView, averageGrade } from "@/lib/student-view";
 import {
   Award,
   Bell,
@@ -33,6 +46,7 @@ import {
   Check,
   CheckCheck,
   ChevronRight,
+  ExternalLink,
   FileUp,
   Globe,
   GraduationCap,
@@ -43,6 +57,8 @@ import {
   LogOut,
   Mail,
   Map,
+  MessageSquare,
+  Moon,
   Newspaper,
   TrendingUp,
   UserRound,
@@ -58,52 +74,70 @@ export function daysUntil(iso: string) {
   return diff > 0 ? Math.ceil(diff / 86_400_000) : 0;
 }
 
-const READ_KEY = "unijourney:read-notifications";
-
 export function Dashboard({
   view,
   lang,
   setLang,
+  demoPlan,
+  demoEvents,
+  initialTab = "dashboard",
   onReimport,
   onSignOut,
 }: {
   view: StudentView;
   lang: Lang;
   setLang: React.Dispatch<React.SetStateAction<Lang>>;
-  onReimport?: () => void;
+  demoPlan?: ProgrammePlan;
+  demoEvents?: CalendarEvent[];
+  initialTab?: Tab;
+  onReimport?: (returnTab: Tab) => void;
   onSignOut?: () => void;
 }) {
   const { student, progress } = view;
+  const currentGpa = averageGrade(view.completedCourses);
+  const demo = Boolean(demoPlan);
+  const readKey = demo ? "unijourney:demo-read-notifications" : "unijourney:read-notifications";
   const planQuery = useQuery({
     queryKey: ["kth-plan", student.programmeCode, view.programmeTerm],
     queryFn: () =>
       getKthPlan({
         data: { programmeCode: student.programmeCode, term: view.programmeTerm ?? "" },
       }),
-    enabled: Boolean(view.programmeTerm),
+    enabled: !demo && Boolean(view.programmeTerm),
     staleTime: 12 * 60 * 60 * 1000,
   });
-  const plan = planQuery.data;
+  const plan = demoPlan ?? planQuery.data;
   const examQuery = useQuery({
     queryKey: ["kth-exam-periods"],
     queryFn: () => getKthExamPeriods(),
+    enabled: !demo,
     staleTime: 12 * 60 * 60 * 1000,
   });
-  const examEvents = examQuery.data;
+  const examEvents = demo ? undefined : examQuery.data;
   const planEvents = useMemo(
     () =>
-      [...(plan ? eventsFromPlan(plan, view.courseCodes) : []), ...(examEvents ?? [])].sort(
-        (a, b) => a.date.localeCompare(b.date),
-      ),
-    [plan, view.courseCodes, examEvents],
+      [...(plan ? eventsFromPlan(plan, view.courseCodes) : []), ...(examEvents ?? [])]
+        .map((event) => (demo ? { ...event, href: "" } : event))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    [plan, view.courseCodes, examEvents, demo],
   );
   const today = new Date().toISOString().slice(0, 10);
+  const calendarEvents = useMemo(
+    (): CalendarEvent[] => [
+      ...planEvents.map((event) => ({
+        ...event,
+        kind: event.kind === "course" ? null : event.kind,
+      })),
+      ...(demoEvents ?? []),
+    ],
+    [planEvents, demoEvents],
+  );
   const deadline = plan ? findNextDeadline(planEvents, plan.courses, today) : null;
   const daysLeft = deadline ? daysUntil(deadline.iso) : 0;
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readIds, setReadIds] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem(READ_KEY) ?? "[]") as string[];
+      return JSON.parse(localStorage.getItem(readKey) ?? "[]") as string[];
     } catch {
       return [];
     }
@@ -112,7 +146,7 @@ export function Dashboard({
     setReadIds((current) => {
       const next = [...new Set([...current, ...ids])].slice(-200);
       try {
-        localStorage.setItem(READ_KEY, JSON.stringify(next));
+        localStorage.setItem(readKey, JSON.stringify(next));
       } catch {
         // Private mode or blocked storage: read state lasts for this visit only.
       }
@@ -129,7 +163,27 @@ export function Dashboard({
   const nc = newsCopy[lang];
   const [notifPrefs, setNotifPrefs] =
     useState<Record<NotificationPrefKey, boolean>>(defaultNotificationPrefs);
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [programmeSelection, setProgrammeSelection] = useState(emptyProgrammeSelection);
+  const { programme: profileProgramme, school, degree, cohort } = programmeSelection;
+  const profileProgrammeName =
+    lang === "sv" ? profileProgramme?.titleSv || profileProgramme?.title : profileProgramme?.title;
+  const profileDegree = degreeLabels[degree]?.[lang] ?? degree;
+  const profileSchool = schoolNames[school]?.[lang] ?? (school === "unlisted" ? "" : school);
+  const admissionYear = cohort.slice(0, 4);
+  const currentTerm = termOf(today);
+  const studyYear =
+    cohort && currentTerm >= cohort
+      ? Number(currentTerm.slice(0, 4)) -
+        Number(admissionYear) +
+        Number(currentTerm[4]! >= cohort[4]!)
+      : 0;
+  const newsQuery = useQuery({
+    queryKey: ["kth-latest-news", lang],
+    queryFn: () => getLatestKthNews({ data: lang }),
+    enabled: tab === "dashboard" || tab === "news",
+    staleTime: 30 * 60_000,
+  });
   const [periodFilter, setPeriodFilter] = useState("all");
   const [semesterFilter, setSemesterFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
@@ -143,28 +197,59 @@ export function Dashboard({
     window.scrollTo({ top: 0 });
   }
 
+  const ladokUpdateCard = (
+    <section className="rounded-2xl border border-primary/20 bg-primary-soft p-4 shadow-card sm:flex sm:items-center sm:justify-between sm:gap-5">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-card text-primary">
+          <FileUp className="size-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-display text-base font-bold">{t.ladokUpdateTitle}</h3>
+          <p className="mt-1 max-w-lg text-sm leading-snug text-muted-foreground">
+            {t.ladokUpdateDescription}
+          </p>
+        </div>
+      </div>
+      {onReimport ? (
+        <Button
+          type="button"
+          onClick={() => onReimport(tab)}
+          className="mt-3 min-h-11 w-full shrink-0 rounded-xl sm:mt-0 sm:w-auto"
+        >
+          {t.updateFromLadok}
+        </Button>
+      ) : (
+        <Button asChild className="mt-3 min-h-11 w-full shrink-0 rounded-xl sm:mt-0 sm:w-auto">
+          <Link to="/" search={{ login: true }}>
+            {t.ladokSignIn}
+          </Link>
+        </Button>
+      )}
+    </section>
+  );
+
   return (
     <div
-      className="min-h-screen bg-background pb-28 text-foreground"
+      className="min-h-dvh bg-background text-foreground"
       style={{ "--progress": `${progress.progressPercent}%` } as React.CSSProperties}
     >
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 md:px-8">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:px-5 md:px-8 md:py-5">
           <button
             type="button"
             onClick={() => go("dashboard")}
-            className="flex items-center gap-3"
+            className="flex min-h-11 min-w-0 items-center gap-2 sm:gap-3"
             aria-label="UniJourney home"
           >
-            <span className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-brand">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-brand sm:size-10">
               <GraduationCap className="size-5" aria-hidden="true" />
             </span>
-            <span className="font-display text-xl font-bold">UniJourney</span>
+            <span className="truncate font-display text-base font-bold sm:text-xl">UniJourney</span>
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             <div className="hidden items-center gap-2 rounded-full bg-success-soft px-3 py-1.5 text-xs font-bold text-success md:flex">
               <span className="size-1.5 rounded-full bg-success" />
-              {t.activeStudent}
+              {demo ? (lang === "sv" ? "Exempeldata" : "Sample data") : t.activeStudent}
             </div>
             <button
               type="button"
@@ -173,7 +258,7 @@ export function Dashboard({
               aria-label={
                 notificationsOpen ? t.closeNotifications : t.openNotifications(unreadCount)
               }
-              className="relative grid size-10 place-items-center rounded-xl border border-border bg-card text-muted-foreground shadow-card transition-colors hover:bg-secondary hover:text-primary"
+              className="relative grid size-11 place-items-center md:size-10 rounded-xl border border-border bg-card text-muted-foreground shadow-card transition-colors hover:bg-secondary hover:text-primary"
             >
               <Bell className="size-5" aria-hidden="true" />
               {unreadCount > 0 && (
@@ -182,6 +267,13 @@ export function Dashboard({
                 </span>
               )}
             </button>
+            {demo && (
+              <Button asChild className="h-11 shrink-0 rounded-xl px-2.5 sm:px-4 md:h-10">
+                <Link to="/" search={{ login: true }}>
+                  {lang === "sv" ? "Logga in" : "Login"}
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -195,7 +287,7 @@ export function Dashboard({
             />
             <section
               aria-label="Notifications"
-              className="fixed inset-x-4 top-24 z-40 mx-auto max-h-[70vh] max-w-md overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-card md:absolute md:inset-x-auto md:right-8 md:top-full md:mt-2 md:w-96"
+              className="absolute inset-x-3 top-full z-40 mx-auto mt-2 max-h-[calc(100dvh-9rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-w-md overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-card md:inset-x-auto md:right-8 md:top-full md:max-h-[70dvh] md:w-96"
             >
               <div className="flex items-end justify-between gap-3">
                 <p className="section-label">{t.notifications}</p>
@@ -240,7 +332,7 @@ export function Dashboard({
         )}
       </header>
 
-      <main className="mx-auto max-w-6xl px-5 pb-24 pt-5 md:px-8 md:pb-16 md:pt-8">
+      <main className="mx-auto min-w-0 max-w-6xl px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 md:px-8 md:pt-8">
         {tab === "dashboard" && (
           <div className="mb-3 md:mb-5">
             <p className="text-xs font-bold text-primary">{t.academicYear}</p>
@@ -325,11 +417,22 @@ export function Dashboard({
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-primary-foreground/20">
               <div className="progress-fill h-full rounded-full bg-primary-foreground" />
             </div>
-            <p className="mt-1.5 text-[11px] font-semibold text-primary-foreground/70">
-              {t.ectsCompleted(progress.completedCredits, progress.totalCredits)}
-            </p>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold text-primary-foreground/70">
+                {t.ectsCompleted(progress.completedCredits, progress.totalCredits)}
+              </p>
+              <dl className="flex items-baseline gap-1.5 rounded-lg bg-primary-foreground/15 px-2.5 py-1">
+                <dt className="text-[11px] font-semibold text-primary-foreground/85">
+                  {t.currentGpa}
+                </dt>
+                <dd className="text-sm font-bold tabular-nums">
+                  {currentGpa}
+                  {currentGpa !== "—" && <span className="text-[11px] font-medium"> / 5</span>}
+                </dd>
+              </dl>
+            </div>
 
-            <div className="mt-3 grid grid-cols-4 gap-2 border-t border-primary-foreground/15 pt-3">
+            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-primary-foreground/15 pt-3 sm:grid-cols-4">
               <StatTile
                 icon={Check}
                 label={t.completedCredits}
@@ -363,6 +466,7 @@ export function Dashboard({
             plan={plan}
             lang={lang}
             t={t}
+            ladokUpdateCard={ladokUpdateCard}
             periodFilter={periodFilter}
             setPeriodFilter={setPeriodFilter}
             semesterFilter={semesterFilter}
@@ -440,6 +544,69 @@ export function Dashboard({
                 ))}
               </ul>
             </section>
+            <section className="card-enter min-w-0 space-y-3 rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-12 md:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-sm font-bold">
+                  <Newspaper className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                  {nc.latest}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => go("news")}
+                  className="flex min-h-10 items-center gap-1 text-xs font-bold text-primary hover:underline"
+                >
+                  {nc.viewAll}
+                  <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+                </button>
+              </div>
+              {newsQuery.isPending && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  {nc.loadingLatest}
+                </p>
+              )}
+              {newsQuery.isError && (
+                <a
+                  href={kthNewsArchive(lang)}
+                  className="text-sm font-semibold text-primary underline"
+                >
+                  {nc.readArchive}
+                </a>
+              )}
+              {newsQuery.data && (
+                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {newsQuery.data.slice(0, 4).map((item) => (
+                    <li key={item.url} className="min-w-0">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group flex h-full items-start gap-3 rounded-xl border border-border p-2.5 hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-primary sm:flex-col"
+                      >
+                        {item.image && (
+                          <img
+                            src={item.image}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="aspect-[4/3] w-20 shrink-0 rounded-lg bg-secondary object-cover sm:aspect-video sm:w-full"
+                          />
+                        )}
+                        <span className="min-w-0">
+                          <span className="block text-xs text-muted-foreground">{item.date}</span>
+                          <span className="mt-1 block text-sm font-semibold leading-snug group-hover:underline">
+                            {item.title}
+                          </span>
+                        </span>
+                        <ExternalLink
+                          className="ml-auto size-3.5 shrink-0 text-primary sm:hidden"
+                          aria-hidden="true"
+                        />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </div>
         )}
 
@@ -452,13 +619,22 @@ export function Dashboard({
             loading={planQuery.isLoading}
             failed={planQuery.isError}
             programmeCode={student.programmeCode}
+            programmeName={student.programme}
+            programmeTerm={view.programmeTerm ?? ""}
             myCodes={view.courseCodes}
+            demo={demo}
+            selection={programmeSelection}
+            setSelection={setProgrammeSelection}
           />
         )}
 
-        {tab === "calendar" && <CalendarScreen lang={lang} events={planEvents} />}
+        <div hidden={tab !== "calendar"}>
+          <CalendarScreen lang={lang} events={calendarEvents} />
+        </div>
 
-        {tab === "news" && <NewsScreen lang={lang} />}
+        {tab === "news" && (
+          <NewsScreen lang={lang} stories={newsQuery.data ?? []} loading={newsQuery.isPending} />
+        )}
 
         {/* Profile --------------------------------------------------------------- */}
         {tab === "profile" && (
@@ -477,6 +653,8 @@ export function Dashboard({
                 {t.exampleData}
               </span>
             </div>
+
+            <div className="mb-3">{ladokUpdateCard}</div>
 
             <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-card">
               <div className="flex min-w-0 items-center gap-3">
@@ -500,6 +678,16 @@ export function Dashboard({
               </Button>
             </div>
 
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-card">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
+                  <Moon className="size-5" aria-hidden="true" />
+                </span>
+                <p className="text-sm font-bold">{t.darkMode}</p>
+              </div>
+              <ThemeSwitch label={t.darkMode} />
+            </div>
+
             <div className="grid gap-3 md:grid-cols-12 md:gap-4">
               <div className="card-enter card-enter-delay rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-5 md:p-5">
                 <div className="flex items-center gap-4">
@@ -510,9 +698,11 @@ export function Dashboard({
                     <h3 className="truncate font-display text-base font-bold">
                       {student.fullName}
                     </h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {student.degreeLevel} · {student.programmeCode}
-                    </p>
+                    {profileProgramme && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {profileDegree} · {profileProgramme.code}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -543,39 +733,58 @@ export function Dashboard({
                     </dd>
                   </div>
                 </dl>
-
-                <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3">
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground">{t.admissionYear}</p>
-                    <p className="mt-1 font-display text-lg font-bold">{student.admissionYear}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground">{t.studyYear}</p>
-                    <p className="mt-1 font-display text-lg font-bold">{student.studyYear}</p>
-                  </div>
-                </div>
               </div>
 
               <div className="card-enter card-enter-delay-2 rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-7 md:p-5">
                 <p className="section-label">{t.academicDetails}</p>
-                <div className="mt-2 divide-y divide-border">
-                  <DetailRow icon={Landmark} label={t.university} value={student.university} />
-                  <DetailRow
-                    icon={Building2}
-                    label={t.department}
-                    value={student.department}
-                    chip={student.departmentCode}
-                  />
-                  <DetailRow icon={GraduationCap} label={t.programme} value={student.programme} />
-                  <DetailRow icon={Hash} label={t.programmeCode} value={student.programmeCode} />
-                  <DetailRow icon={Award} label={t.degreeLevel} value={student.degreeLevel} />
-                  <DetailRow
-                    icon={CalendarDays}
-                    label={t.admissionYear}
-                    value={student.admissionYear}
-                  />
-                  <DetailRow icon={Layers} label={t.studyYear} value={student.studyYear} />
-                </div>
+                {profileProgramme ? (
+                  <div className="mt-2 divide-y divide-border">
+                    <DetailRow
+                      icon={Landmark}
+                      label={t.university}
+                      value="KTH Royal Institute of Technology"
+                    />
+                    {profileSchool && (
+                      <DetailRow
+                        icon={Building2}
+                        label={t.kthSchool}
+                        value={profileSchool}
+                        chip={school}
+                      />
+                    )}
+                    <DetailRow
+                      icon={GraduationCap}
+                      label={t.programme}
+                      value={profileProgrammeName ?? profileProgramme.title}
+                    />
+                    <DetailRow icon={Hash} label={t.programmeCode} value={profileProgramme.code} />
+                    <DetailRow icon={Award} label={t.degreeLevel} value={profileDegree} />
+                    {admissionYear && (
+                      <DetailRow
+                        icon={CalendarDays}
+                        label={t.admissionYear}
+                        value={admissionYear}
+                      />
+                    )}
+                    {studyYear > 0 && (
+                      <DetailRow icon={Layers} label={t.studyYear} value={t.yearN(studyYear)} />
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl bg-secondary p-3">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {t.selectProgrammePrompt}
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => go("plan")}
+                      className="mt-3 min-h-11 rounded-xl"
+                    >
+                      <Map className="size-4" aria-hidden="true" />
+                      {t.selectProgrammeAction}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="card-enter card-enter-delay-3 rounded-2xl border border-border bg-card p-4 shadow-card md:col-span-5 md:p-5">
@@ -628,14 +837,14 @@ export function Dashboard({
                 <h3 className="text-sm font-bold">{nc.notifyTitle}</h3>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{nc.notifyIntro}</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid gap-2 min-[375px]:grid-cols-2">
                 {profilePrefKeys.map((k) => (
                   <button
                     key={k}
                     type="button"
                     aria-pressed={notifPrefs[k]}
                     onClick={() => setNotifPrefs((p) => ({ ...p, [k]: !p[k] }))}
-                    className={`flex items-center justify-between gap-2 rounded-full border px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                    className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors ${
                       notifPrefs[k]
                         ? "border-primary bg-primary-soft text-primary"
                         : "border-border bg-secondary text-muted-foreground"
@@ -653,16 +862,6 @@ export function Dashboard({
             <Button
               type="button"
               variant="outline"
-              onClick={onReimport}
-              disabled={!onReimport}
-              className="mt-4 h-11 w-full gap-2 rounded-xl md:w-auto md:min-w-44"
-            >
-              <FileUp className="size-4" aria-hidden="true" />
-              {t.updateFromLadok}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
               onClick={onSignOut}
               disabled={!onSignOut}
               className="mt-4 h-11 w-full gap-2 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive md:ml-auto md:flex md:w-auto md:min-w-44"
@@ -670,12 +869,33 @@ export function Dashboard({
               <LogOut className="size-4" aria-hidden="true" />
               {t.logOut}
             </Button>
+            <section className="mt-4 flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 shadow-card sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex items-start gap-3">
+                <MessageSquare className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                <div>
+                  <h3 className="text-sm font-bold">{t.feedbackTitle}</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {t.feedbackDescription}
+                  </p>
+                </div>
+              </div>
+              <Button asChild variant="outline" className="min-h-11 shrink-0 rounded-xl">
+                <a
+                  href="https://github.com/Dillydot/unijourney-progress-hub/issues/new"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t.feedbackAction}
+                  <ExternalLink className="size-3.5" aria-hidden="true" />
+                </a>
+              </Button>
+            </section>
           </section>
         )}
       </main>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-3 py-2 backdrop-blur"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur sm:px-3"
         aria-label="Main navigation"
       >
         <div className="mx-auto grid max-w-xl grid-cols-6">

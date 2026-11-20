@@ -244,14 +244,15 @@ export function LadokImport({
       },
       p_courses: merged.map(toCourseRow),
     });
-    setSaving(false);
-    if (error) setSaveError(error.message);
-    else onDone();
+    if (error) {
+      setSaving(false);
+      setSaveError(error.message);
+    } else onDone();
   }
 
   const docCard = (kind: Kind, parsed: { courses: unknown[] } | null, hp: number) => (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-card">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <h2 className="font-display text-base font-bold">{t[kind].title}</h2>
         {parsed && !errors[kind] ? (
           <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-success">
@@ -262,7 +263,7 @@ export function LadokImport({
           <span className="shrink-0 text-xs font-semibold text-muted-foreground">{t.waiting}</span>
         )}
       </div>
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+      <dl className="mt-3 grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-3 wrap-anywhere gap-y-1 text-sm">
         {t[kind].fields.map(([label, value]) => (
           <Fragment key={label}>
             <dt className="text-muted-foreground">{label}</dt>
@@ -305,7 +306,7 @@ export function LadokImport({
   );
 
   return (
-    <main className="mx-auto max-w-2xl space-y-4 px-5 py-8">
+    <main className="mx-auto max-w-2xl space-y-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-5">
       <h1 className="font-display text-2xl font-bold">{t.title}</h1>
       <p className="flex items-start gap-2 text-sm text-muted-foreground">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
@@ -315,7 +316,7 @@ export function LadokImport({
         href="https://www.student.ladok.se/"
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-2 text-sm font-bold text-primary underline-offset-4 hover:underline"
+        className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-primary underline-offset-4 hover:underline"
       >
         {t.open} <ExternalLink className="size-4" aria-hidden="true" />
       </a>
@@ -339,12 +340,12 @@ export function LadokImport({
           setDragging(false);
           readAll(e.dataTransfer.files);
         }}
-        className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${dragging ? "border-primary bg-primary-soft" : "border-border hover:bg-secondary"}`}
+        className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-4 text-center transition-colors focus-within:ring-2 focus-within:ring-primary sm:p-6 ${dragging ? "border-primary bg-primary-soft" : "border-border hover:bg-secondary"}`}
       >
         <Upload className="size-6 text-primary" aria-hidden="true" />
         <span className="font-display text-base font-bold">{t.drop}</span>
         <span className="text-sm text-muted-foreground">{t.dropHint}</span>
-        <span className="mt-1 inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold text-primary">
+        <span className="mt-1 inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold text-primary">
           <FileText className="size-4" aria-hidden="true" />
           {t.choose}
         </span>
@@ -378,7 +379,7 @@ export function LadokImport({
             id="display-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="h-10 border-primary-foreground/30 bg-primary-foreground text-foreground"
+            className="h-11 border-primary-foreground/30 bg-primary-foreground text-foreground"
           />
           {saveError && (
             <p className="text-sm font-semibold" role="alert">

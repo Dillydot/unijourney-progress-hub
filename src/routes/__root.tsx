@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 
+import { themeStorageKey } from "@/components/ThemeSwitch";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -73,7 +74,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "author", content: "UniJourney" },
     ],
     links: [
@@ -98,8 +99,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try { if (localStorage.getItem(${JSON.stringify(themeStorageKey)}) === "dark") document.documentElement.classList.add("dark"); } catch {}`,
+          }}
+        />
         <HeadContent />
       </head>
       <body>

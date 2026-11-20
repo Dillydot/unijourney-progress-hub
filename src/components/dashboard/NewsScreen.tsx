@@ -1,20 +1,25 @@
-import { Lang } from "@/lib/copy";
-import { getKthNews } from "@/lib/kth-api";
+import type { Lang } from "@/lib/copy";
+import { getKthNewsThemes, getKthThemeNews } from "@/lib/kth-api";
+import { kthNewsArchive, kthNewsThemeUrl, type KthNewsStory } from "@/lib/kth-news";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 
 export const newsCopy = {
   en: {
     label: "KTH News",
     title: "News from KTH",
-    intro: "The latest stories from KTH.",
-    source: "From kth.se",
-    loading: "Loading news from kth.se…",
-    failed: "Couldn't load news from kth.se right now.",
-    archive: "All news on kth.se",
+    themes: "News themes",
+    allNews: "Latest news",
+    openTheme: "Open this theme on KTH",
+    themesUnavailable: "Could not load KTH’s news themes.",
+    themeUnavailable: "No articles are available here. Open the theme on KTH to browse it.",
+    latest: "Latest news",
+    loadingLatest: "Loading news from KTH…",
+    readArchive: "Open the KTH news archive",
+    viewAll: "View all news",
     notifyTitle: "Notify me about",
     notifyIntro: "Choose which notifications you want to receive.",
-    all: "All",
     on: "On",
     off: "Off",
     prefs: {
@@ -31,14 +36,17 @@ export const newsCopy = {
   sv: {
     label: "KTH-nyheter",
     title: "Nyheter från KTH",
-    intro: "De senaste nyheterna från KTH.",
-    source: "Från kth.se",
-    loading: "Hämtar nyheter från kth.se…",
-    failed: "Kunde inte hämta nyheter från kth.se just nu.",
-    archive: "Alla nyheter på kth.se",
+    themes: "Nyhetsteman",
+    allNews: "Senaste nyheterna",
+    openTheme: "Öppna temat på KTH",
+    themesUnavailable: "Det gick inte att hämta KTH:s nyhetsteman.",
+    themeUnavailable: "Inga artiklar kan visas här. Öppna temat på KTH för att läsa mer.",
+    latest: "Senaste nyheterna",
+    loadingLatest: "Hämtar nyheter från KTH…",
+    readArchive: "Öppna KTH:s nyhetsarkiv",
+    viewAll: "Visa alla nyheter",
     notifyTitle: "Notiser om",
     notifyIntro: "Välj vilka notiser du vill få.",
-    all: "Alla",
     on: "På",
     off: "Av",
     prefs: {
@@ -76,84 +84,121 @@ export const profilePrefKeys: NotificationPrefKey[] = [
   "innovation",
 ];
 
-const archiveUrl = {
-  en: "https://www.kth.se/en/om/nyheter/centrala-nyheter",
-  sv: "https://www.kth.se/om/nyheter/centrala-nyheter",
-};
-
-export function NewsScreen({ lang }: { lang: Lang }) {
+export function NewsScreen({
+  lang,
+  stories,
+  loading,
+}: {
+  lang: Lang;
+  stories: KthNewsStory[];
+  loading: boolean;
+}) {
   const c = newsCopy[lang];
-  const news = useQuery({
-    queryKey: ["kth-news", lang],
-    queryFn: () => getKthNews({ data: { lang } }),
-    staleTime: 60 * 60 * 1000,
+  const [theme, setTheme] = useState("");
+  const themes = useQuery({
+    queryKey: ["kth-news-themes", lang],
+    queryFn: () => getKthNewsThemes({ data: lang }),
+    staleTime: 30 * 60_000,
   });
-  const fmt = (iso: string) =>
-    new Date(`${iso}T12:00:00`).toLocaleDateString(lang === "sv" ? "sv-SE" : "en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+  const themeNews = useQuery({
+    queryKey: ["kth-news-theme", lang, theme],
+    queryFn: () => getKthThemeNews({ data: { lang, slug: theme } }),
+    enabled: Boolean(theme),
+    staleTime: 30 * 60_000,
+  });
+  const items = theme ? (themeNews.data ?? []) : stories;
+  const pending = theme ? themeNews.isPending : loading;
 
   return (
-    <section id="news" className="card-enter scroll-mt-6 space-y-3 md:col-span-12">
-      <div>
-        <div className="flex items-center gap-2">
-          <p className="section-label">{c.label}</p>
-          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-            {c.source}
-          </span>
-        </div>
-        <h1 className="mt-1 font-display text-xl font-bold md:text-2xl">{c.title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{c.intro}</p>
-      </div>
+    <section id="news" className="card-enter scroll-mt-6 space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-display text-2xl font-bold md:text-3xl">{c.title}</h1>
+        <a
+          href={kthNewsArchive(lang)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary hover:underline"
+        >
+          {c.readArchive}
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+        </a>
+      </header>
 
-      {news.isLoading && <p className="text-sm text-muted-foreground">{c.loading}</p>}
-      {news.isError && (
-        <p className="text-sm font-semibold text-destructive" role="alert">
-          {c.failed}
+      <label className="block max-w-sm space-y-1.5">
+        <span className="block text-sm font-bold">{c.themes}</span>
+        <select
+          value={theme}
+          onChange={(event) => setTheme(event.target.value)}
+          className="h-11 w-full rounded-xl border border-border bg-card px-3 text-base focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          <option value="">{c.allNews}</option>
+          {themes.data?.map(({ slug, title }) => (
+            <option key={slug} value={slug}>
+              {title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {themes.isError && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {c.themesUnavailable}
+        </p>
+      )}
+      {theme && (
+        <a
+          href={kthNewsThemeUrl(lang, theme)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-primary hover:underline"
+        >
+          {c.openTheme}
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+        </a>
+      )}
+      {theme && !pending && !items.length && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {c.themeUnavailable}
         </p>
       )}
 
-      <ul className="grid gap-3 md:grid-cols-2">
-        {news.data?.slice(0, 10).map((n) => (
-          <li key={n.href}>
-            <a
-              href={n.href}
-              target="_blank"
-              rel="noreferrer"
-              className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-colors hover:bg-secondary"
-            >
-              {n.image && (
-                <img
-                  src={n.image}
-                  alt={n.imageAlt ?? ""}
-                  loading="lazy"
-                  className="aspect-[16/9] w-full object-cover"
-                />
-              )}
-              <div className="flex flex-1 flex-col p-3">
-                <p className="text-xs text-muted-foreground">{fmt(n.date)}</p>
-                <h3 className="mt-1 text-sm font-bold leading-snug">{n.title}</h3>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">{n.summary}</p>
-                <span className="mt-auto inline-flex items-center gap-1 pt-2 text-xs font-semibold text-primary">
-                  {c.read} <ExternalLink className="size-3.5" aria-hidden="true" />
-                </span>
-              </div>
-            </a>
-          </li>
-        ))}
-      </ul>
-
-      {news.data && (
-        <a
-          href={archiveUrl[lang]}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-sm font-semibold text-primary"
-        >
-          {c.archive} <ExternalLink className="size-4" aria-hidden="true" />
-        </a>
+      {pending && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {c.loadingLatest}
+        </p>
+      )}
+      {items.length > 0 && (
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((story) => (
+            <li key={story.url} className="min-w-0">
+              <a
+                href={story.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {story.image && (
+                  <img
+                    src={story.image}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="aspect-video w-full bg-secondary object-cover"
+                  />
+                )}
+                <div className="flex flex-1 flex-col gap-2 p-4">
+                  {story.date && <p className="text-xs text-muted-foreground">{story.date}</p>}
+                  <h2 className="text-base leading-snug font-bold group-hover:underline">
+                    {story.title}
+                  </h2>
+                  <span className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                    {c.read}
+                    <ExternalLink className="size-3.5" aria-hidden="true" />
+                  </span>
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

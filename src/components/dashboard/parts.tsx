@@ -21,16 +21,14 @@ export function StatTile({
     <div className="min-w-0">
       <p className="flex items-center gap-1 font-display text-sm font-bold leading-none md:text-base">
         <Icon className="size-3 shrink-0 text-primary-foreground/60" aria-hidden="true" />
-        <span className="min-w-0 truncate">
+        <span className="min-w-0 wrap-anywhere">
           {value}
           {unit && (
             <span className="ml-0.5 text-[10px] font-bold text-primary-foreground/70">{unit}</span>
           )}
         </span>
       </p>
-      <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-3 text-primary-foreground/70">
-        {label}
-      </p>
+      <p className="mt-1 text-xs font-semibold leading-4 text-primary-foreground/70">{label}</p>
     </div>
   );
 }
@@ -145,13 +143,15 @@ export function DetailRow({
   chip?: string;
 }) {
   return (
-    <div className="grid grid-cols-[2rem_1fr] gap-3 py-2.5 first:pt-1 last:pb-0">
+    <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 py-2.5 first:pt-1 last:pb-0">
       <span className="grid size-8 place-items-center rounded-lg bg-secondary text-primary">
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <div className="min-w-0">
         <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-        <p className="mt-1 text-sm font-bold leading-5 text-card-foreground">{value}</p>
+        <p className="mt-1 text-sm font-bold leading-5 wrap-anywhere text-card-foreground">
+          {value}
+        </p>
         {chip && (
           <span className="mt-2 inline-flex rounded-md bg-primary-soft px-2 py-0.5 text-[0.6875rem] font-bold uppercase tracking-wide text-primary">
             {chip}
@@ -223,12 +223,14 @@ export function NavItem({
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
-        active ? "text-primary" : "text-muted-foreground hover:bg-secondary hover:text-primary"
+      className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-0.5 transition-colors touch-manipulation focus-visible:outline-2 focus-visible:outline-ring ${
+        active
+          ? "bg-primary-soft text-primary"
+          : "text-muted-foreground hover:bg-secondary hover:text-primary"
       }`}
     >
       <Icon className="size-5" aria-hidden="true" />
-      <span className="text-[0.6875rem] font-bold">{label}</span>
+      <span className="text-center text-[10px] leading-none font-bold sm:text-xs">{label}</span>
     </button>
   );
 }

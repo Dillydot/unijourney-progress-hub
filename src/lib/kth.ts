@@ -29,9 +29,17 @@ export type PlanCourse = {
 
 /** `notes`: the programme's own rules, e.g. how many elective courses to take. */
 export type ProgrammePlan = { name: string; years: number; courses: PlanCourse[]; notes: string[] };
+type PublishedCourseRound = {
+  term: string;
+  applicationCode: string;
+  programmes: string[];
+  periods: { period: string; credits: number }[];
+};
+
 export type CourseDetails = {
   examiner?: string;
   examinerUrl?: string;
+  publishedRounds?: PublishedCourseRound[];
   /** TimeEdit schedule per course round, keyed by application code. */
   rounds: Record<string, { scheduleUrl?: string; location?: string; language?: string }>;
 };
@@ -60,13 +68,14 @@ type StoreCourse = {
   kod: string;
   benamning: string;
   Valvillkor: string;
-  tillfalleskod: string;
+  tillfalleskod?: string;
+  omfattning?: { number: number };
   Tillfallesperioder?: Array<{
     ForstaRegistreringsdatum?: string;
     SistaRegistreringsdatum?: string;
-    ForstaUndervisningsdatum: string;
-    SistaUndervisningsdatum: string;
-    Lasperiodsfordelning: Array<{ Lasperiodskod: string; Omfattningsvarde: number }>;
+    ForstaUndervisningsdatum?: string;
+    SistaUndervisningsdatum?: string;
+    Lasperiodsfordelning?: Array<{ Lasperiodskod: string; Omfattningsvarde: number }>;
   }>;
 };
 type ProgrammeStore = {
@@ -95,33 +104,59 @@ export function planFromProgrammeStore(raw: unknown): ProgrammePlan {
       if (note) notes.add(note);
       for (const c of year.courses) {
         const round = c.Tillfallesperioder?.[0];
-        if (!round || seen.has(`${year.yearNumber}-${c.kod}-${c.tillfalleskod}`)) continue;
+        if (seen.has(`${year.yearNumber}-${c.kod}-${c.tillfalleskod}`)) continue;
         seen.add(`${year.yearNumber}-${c.kod}-${c.tillfalleskod}`);
-        const start = round.ForstaUndervisningsdatum;
-        const end = round.SistaUndervisningsdatum;
+        const start = round?.ForstaUndervisningsdatum ?? "";
+        const end = round?.SistaUndervisningsdatum ?? "";
         const startYear =
           Number(start.slice(5, 7)) >= 7
             ? Number(start.slice(0, 4))
             : Number(start.slice(0, 4)) - 1;
-        const periods = round.Lasperiodsfordelning;
-        for (const p of periods)
+        const periods = round?.Lasperiodsfordelning ?? [];
+        const startMonth = Number(start.slice(5, 7));
+        const endMonth = Number(end.slice(5, 7));
+        const calendarYear = Number(start.slice(0, 4));
+        const endYear = Number(end.slice(0, 4));
+        const autumn =
+          startMonth >= 8 &&
+          ((endYear === calendarYear && endMonth >= startMonth) ||
+            (endYear === calendarYear + 1 && endMonth === 1));
+        const spring =
+          startMonth >= 1 &&
+          startMonth <= 6 &&
+          endYear === calendarYear &&
+          endMonth >= startMonth &&
+          endMonth <= 6;
+        const datedSemester = autumn
+          ? `Autumn ${calendarYear}`
+          : spring
+            ? `Spring ${calendarYear}`
+            : "";
+        const allocations = periods.length
+          ? periods
+          : [{ Lasperiodskod: "", Omfattningsvarde: c.omfattning?.number ?? 0 }];
+        for (const p of allocations)
           courses.push({
             year: year.yearNumber,
-            semester: ["P1", "P2"].includes(p.Lasperiodskod)
-              ? `Autumn ${startYear}`
-              : `Spring ${startYear + 1}`,
+            semester: !p.Lasperiodskod
+              ? datedSemester
+              : start
+                ? ["P1", "P2"].includes(p.Lasperiodskod)
+                  ? `Autumn ${startYear}`
+                  : `Spring ${startYear + 1}`
+                : "",
             period: p.Lasperiodskod,
             kind: c.Valvillkor === "O" ? "mandatory" : "elective",
             code: c.kod,
             name: c.benamning,
             credits: p.Omfattningsvarde,
-            dates: dateRange(start, end),
+            dates: start && end ? dateRange(start, end) : "",
             start,
             end,
-            firstRegistration: round.ForstaRegistreringsdatum ?? null,
-            lastRegistration: round.SistaRegistreringsdatum ?? null,
+            firstRegistration: round?.ForstaRegistreringsdatum ?? null,
+            lastRegistration: round?.SistaRegistreringsdatum ?? null,
             spansTwoPeriods: periods.length > 1,
-            applicationCode: c.tillfalleskod,
+            applicationCode: c.tillfalleskod ?? "",
           });
       }
     }
@@ -137,6 +172,8 @@ type CourseStore = {
       Array<{
         round_application_code?: string;
         round_schedule?: string;
+        round_periods?: string;
+        round_part_of_programme?: string;
         round_course_place?: string;
         round_tutoring_language?: string;
       }>
@@ -150,18 +187,85 @@ export function detailsFromCourseStore(raw: unknown): CourseDetails {
   // First examiner only: '<p class="person"> ... <a href="/profile/kappen/">Philip Kappen</a>'
   const person = html.match(/<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/);
   const rounds: CourseDetails["rounds"] = {};
-  for (const list of Object.values(data?.roundsBySemester ?? {}))
-    for (const r of list)
+  const publishedRounds: PublishedCourseRound[] = [];
+  for (const [term, list] of Object.entries(data?.roundsBySemester ?? {}))
+    for (const r of list) {
+      const label = (r.round_periods ?? "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ");
+      const periods = [
+        ...label.matchAll(/\b(P[1-4])\s*\(\s*(\d+(?:[.,]\d+)?)\s*(?:hp|credits?)\s*\)/gi),
+      ];
+      if (periods.length && (label.match(/\bP\d+\b/gi) ?? []).length === periods.length) {
+        publishedRounds.push({
+          term,
+          applicationCode: r.round_application_code ?? "",
+          programmes: [
+            ...(r.round_part_of_programme ?? "").matchAll(
+              /href="(?:https:\/\/www\.kth\.se)?(\/student\/kurser\/program\/[^"#?]+)(?:[?#][^"]*)?"/g,
+            ),
+          ].map((match) => match[1]!),
+          periods: periods.map((match) => ({
+            period: match[1]!.toUpperCase(),
+            credits: Number(match[2]!.replace(",", ".")),
+          })),
+        });
+      }
+
       if (r.round_application_code)
         rounds[r.round_application_code] = {
           ...(r.round_schedule ? { scheduleUrl: r.round_schedule } : {}),
           ...(r.round_course_place ? { location: r.round_course_place } : {}),
           ...(r.round_tutoring_language ? { language: r.round_tutoring_language } : {}),
         };
+    }
   return {
+    ...(publishedRounds.length ? { publishedRounds } : {}),
     ...(person?.[2] ? { examiner: person[2].trim() } : {}),
     ...(person?.[1] ? { examinerUrl: new URL(person[1], "https://www.kth.se").href } : {}),
     rounds,
+  };
+}
+
+export function withVerifiedPeriods(
+  plan: ProgrammePlan,
+  details: Record<string, CourseDetails>,
+  programmeCode: string,
+  admissionTerm: string,
+): ProgrammePlan {
+  return {
+    ...plan,
+    courses: plan.courses.flatMap((course) => {
+      if (course.period || !course.semester || course.credits <= 0) return [course];
+
+      const semester = /^(Autumn|Spring) (\d{4})$/.exec(course.semester);
+      if (!semester) return [course];
+      const autumn = semester[1] === "Autumn";
+      const term = `${semester[2]}${autumn ? 2 : 1}`;
+      const programmePath = `/student/kurser/program/${encodeURIComponent(programmeCode)}/${admissionTerm}/arskurs${course.year}`;
+      const matches = details[course.code]?.publishedRounds?.filter(
+        (round) =>
+          round.term === term &&
+          (course.applicationCode
+            ? round.applicationCode === course.applicationCode
+            : round.programmes.includes(programmePath)),
+      );
+      if (matches?.length !== 1) return [course];
+
+      const periods = matches[0]!.periods;
+      const allowedPeriods = autumn ? ["P1", "P2"] : ["P3", "P4"];
+      if (
+        periods.some(({ period, credits }) => !allowedPeriods.includes(period) || credits <= 0) ||
+        new Set(periods.map(({ period }) => period)).size !== periods.length ||
+        Math.abs(periods.reduce((sum, period) => sum + period.credits, 0) - course.credits) > 0.001
+      )
+        return [course];
+
+      return periods.map(({ period, credits }) => ({
+        ...course,
+        period,
+        credits,
+        spansTwoPeriods: periods.length > 1,
+      }));
+    }),
   };
 }
 
@@ -288,24 +392,25 @@ export function eventsFromPlan(plan: ProgrammePlan, myCodes: string[]): PlanEven
   const events: PlanEvent[] = [];
   for (const [id, c] of rounds) {
     const courseHref = c.scheduleUrl ?? `https://www.kth.se/student/kurser/kurs/${c.code}?l=en`;
-    events.push(
-      {
-        id: `${id}-start`,
-        date: c.start,
-        kind: "course",
-        title: `${c.name} starts`,
-        code: c.code,
-        href: courseHref,
-      },
-      {
-        id: `${id}-end`,
-        date: c.end,
-        kind: "course",
-        title: `Last teaching day: ${c.name}`,
-        code: c.code,
-        href: courseHref,
-      },
-    );
+    if (c.start && c.end)
+      events.push(
+        {
+          id: `${id}-start`,
+          date: c.start,
+          kind: "course",
+          title: `${c.name} starts`,
+          code: c.code,
+          href: courseHref,
+        },
+        {
+          id: `${id}-end`,
+          date: c.end,
+          kind: "course",
+          title: `Last teaching day: ${c.name}`,
+          code: c.code,
+          href: courseHref,
+        },
+      );
     // Registration only matters for courses the student isn't registered on yet.
     if (!mine.has(c.code)) {
       if (c.firstRegistration)
@@ -347,54 +452,4 @@ export function nextDeadline(events: PlanEvent[], courses: PlanCourse[], today: 
     }),
     iso: `${e.date}T23:59:00`,
   };
-}
-
-export type NewsItem = {
-  title: string;
-  summary: string;
-  /** YYYY-MM-DD */
-  date: string;
-  href: string;
-  image?: string;
-  imageAlt?: string;
-};
-
-const SHORT_MONTHS = MONTHS.map((m) => m.slice(0, 3));
-const decode = (s: string) =>
-  s
-    .replace(/<[^>]+>/g, "")
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .trim();
-
-/** News articles from KTH's news archive page (English "Nov 18, 2026" or Swedish "2026-11-18" dates). */
-export function newsFromPage(html: string): NewsItem[] {
-  const items: NewsItem[] = [];
-  for (const [, title = "", body = ""] of html.matchAll(
-    /<li>\s*<h2>([\s\S]*?)<\/h2>\s*<div class="clearfix">([\s\S]*?)<\/li>/g,
-  )) {
-    const rawDate = body.match(/class="date">\s*\S+ <span>([^<]+)<\/span>/)?.[1]?.trim() ?? "";
-    const en = rawDate.match(/^(\w{3}) (\d{1,2}), (\d{4})$/);
-    const date = en
-      ? `${en[3]}-${String(SHORT_MONTHS.indexOf(en[1] ?? "") + 1).padStart(2, "0")}-${(en[2] ?? "").padStart(2, "0")}`
-      : rawDate;
-    const href = body.match(/class="readMore"[\s\S]*?href="([^"]+)"/)?.[1];
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date.includes("-00-") || !href) continue;
-    const img = body.match(/<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"/);
-    items.push({
-      title: decode(title),
-      summary: decode(body.match(/<p>([\s\S]*?)<\/p>/)?.[1] ?? ""),
-      date,
-      href: new URL(href, "https://www.kth.se").href,
-      ...(img?.[1]
-        ? { image: new URL(img[1], "https://www.kth.se").href, imageAlt: decode(img[2] ?? "") }
-        : {}),
-    });
-  }
-  if (!items.length) throw new Error("kth.se news page: no articles found");
-  return items;
 }

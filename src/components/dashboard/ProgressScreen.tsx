@@ -21,6 +21,7 @@ export function ProgressScreen({
   plan,
   lang,
   t,
+  ladokUpdateCard,
   periodFilter,
   setPeriodFilter,
   semesterFilter,
@@ -36,6 +37,7 @@ export function ProgressScreen({
   plan: ProgrammePlan | undefined;
   lang: Lang;
   t: ProgressCopy;
+  ladokUpdateCard: React.ReactNode;
   periodFilter: string;
   setPeriodFilter: (value: string) => void;
   semesterFilter: string;
@@ -159,7 +161,7 @@ export function ProgressScreen({
   if (plan && open > 0) statusRows.push({ label: t.openStatus, ects: open, color: "bg-secondary" });
 
   return (
-    <div className="space-y-3 md:space-y-4">
+    <div className="min-w-0 space-y-3 md:space-y-4">
       <div className="card-enter grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
@@ -176,6 +178,8 @@ export function ProgressScreen({
           {t.exampleData}
         </span>
       </div>
+
+      {ladokUpdateCard}
 
       <section className="card-enter card-enter-delay rounded-2xl bg-primary p-4 text-primary-foreground shadow-brand md:p-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
@@ -317,14 +321,14 @@ export function ProgressScreen({
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder={t.searchCourses}
-              className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-4 text-sm font-semibold outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+              className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-4 text-base md:text-sm font-semibold outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
             />
           </label>
           <Button
             type="button"
             variant={showFilters ? "default" : "outline"}
             size="icon"
-            className="size-10 rounded-xl"
+            className="size-11 rounded-xl"
             aria-label={showFilters ? t.hideFilters : t.showFilters}
             aria-expanded={showFilters}
             onClick={() => setShowFilters((visible) => !visible)}
@@ -350,7 +354,7 @@ export function ProgressScreen({
               size="sm"
               variant={statusFilter === option.value ? "default" : "ghost"}
               aria-pressed={statusFilter === option.value}
-              className="h-9 rounded-lg shadow-none"
+              className="h-auto min-h-11 whitespace-normal rounded-lg px-1 shadow-none"
               onClick={() => {
                 setStatusFilter(option.value);
                 setSelectedGrade(null);
@@ -512,7 +516,7 @@ export function ProgressCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="card-enter rounded-2xl border border-border bg-card p-4 shadow-card md:p-5">
+    <section className="card-enter min-w-0 rounded-2xl border border-border bg-card p-4 shadow-card md:p-5">
       <p className="section-label">{title}</p>
       <p className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p>
       <div className="mt-3">{children}</div>
@@ -533,7 +537,7 @@ export function GroupingSwitch<T extends string>({
 }) {
   return (
     <div
-      className="mb-3 flex gap-1 overflow-x-auto rounded-full bg-secondary p-1"
+      className="mb-3 flex flex-wrap gap-1 rounded-xl bg-secondary p-1"
       role="group"
       aria-label={label}
     >
@@ -545,7 +549,7 @@ export function GroupingSwitch<T extends string>({
           size="sm"
           aria-pressed={value === optionValue}
           onClick={() => onChange(optionValue)}
-          className="min-w-max flex-1 rounded-full shadow-none"
+          className="h-auto min-h-11 flex-1 basis-auto whitespace-normal rounded-lg px-2 py-1.5 text-center leading-tight shadow-none"
         >
           {optionLabel}
         </Button>
@@ -597,66 +601,68 @@ export function EctsChart({
           <p className="mt-1 text-[0.625rem] font-bold text-muted-foreground">ECTS</p>
         </div>
       </div>
-      <div className="relative mt-5 h-36">
-        <div className="pointer-events-none absolute inset-x-0 top-1 bottom-7 flex flex-col justify-between">
-          {[0, 1, 2, 3].map((line) => (
-            <span key={line} className="border-t border-border/70" />
-          ))}
-        </div>
-        <div
-          className="absolute inset-0 grid items-end gap-2"
-          style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}
-        >
-          {data.map((item) => (
-            <div
-              key={item.label}
-              className="group relative z-10 flex h-full min-w-0 flex-col items-center justify-end"
-            >
+      <div className="overflow-x-auto">
+        <div className="relative mt-10 h-36" style={{ minWidth: data.length * 44 }}>
+          <div className="pointer-events-none absolute inset-x-0 top-1 bottom-7 flex flex-col justify-between">
+            {[0, 1, 2, 3].map((line) => (
+              <span key={line} className="border-t border-border/70" />
+            ))}
+          </div>
+          <div
+            className="absolute inset-0 grid items-end gap-2"
+            style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}
+          >
+            {data.map((item) => (
               <div
-                role="tooltip"
-                className="pointer-events-none absolute bottom-[calc(100%-1.25rem)] left-1/2 z-20 w-max max-w-40 -translate-x-1/2 rounded-lg border border-border bg-foreground px-3 py-2 text-left text-[0.6875rem] font-semibold leading-4 text-background opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                key={item.label}
+                className="group relative z-10 flex h-full min-w-0 flex-col items-center justify-end"
               >
-                <span className="block font-bold">{item.label}</span>
-                <span className="block">
-                  {earnedLabel}: {item.earned} ECTS
-                </span>
-                <span className="block">
-                  {expectedLabel}: {item.expected} ECTS
+                <div
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-[calc(100%-1.25rem)] left-1/2 z-20 w-max max-w-40 -translate-x-1/2 rounded-lg border border-border bg-foreground px-3 py-2 text-left text-[0.6875rem] font-semibold leading-4 text-background opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  <span className="block font-bold">{item.label}</span>
+                  <span className="block">
+                    {earnedLabel}: {item.earned} ECTS
+                  </span>
+                  <span className="block">
+                    {expectedLabel}: {item.expected} ECTS
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label={`${item.label}. ${earnedLabel}: ${item.earned} ECTS. ${expectedLabel}: ${item.expected} ECTS.`}
+                  className="absolute inset-x-0 bottom-5 top-0 z-10 h-auto rounded-lg p-0 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <span className="sr-only">{item.label}</span>
+                </Button>
+                <div className="flex h-[6.75rem] w-full items-end justify-center gap-1.5">
+                  <div className="flex h-full w-5 flex-col justify-end sm:w-7">
+                    <span className="mb-1 text-center text-[0.625rem] font-bold text-primary">
+                      {item.earned}
+                    </span>
+                    <span
+                      className="block min-h-1 rounded-t bg-primary"
+                      style={{ height: `${Math.max(4, (item.earned / max) * 76)}%` }}
+                    />
+                  </div>
+                  <div className="flex h-full w-5 flex-col justify-end sm:w-7">
+                    <span className="mb-1 text-center text-[0.625rem] font-bold text-success">
+                      {item.expected}
+                    </span>
+                    <span
+                      className="block min-h-1 rounded-t bg-success"
+                      style={{ height: `${Math.max(4, (item.expected / max) * 76)}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="mt-2 max-w-full truncate text-center text-[0.625rem] font-bold text-muted-foreground sm:text-xs">
+                  {item.label}
                 </span>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={`${item.label}. ${earnedLabel}: ${item.earned} ECTS. ${expectedLabel}: ${item.expected} ECTS.`}
-                className="absolute inset-x-0 bottom-5 top-0 z-10 h-auto rounded-lg p-0 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <span className="sr-only">{item.label}</span>
-              </Button>
-              <div className="flex h-[6.75rem] w-full items-end justify-center gap-1.5">
-                <div className="flex h-full w-5 flex-col justify-end sm:w-7">
-                  <span className="mb-1 text-center text-[0.625rem] font-bold text-primary">
-                    {item.earned}
-                  </span>
-                  <span
-                    className="block min-h-1 rounded-t bg-primary"
-                    style={{ height: `${Math.max(4, (item.earned / max) * 76)}%` }}
-                  />
-                </div>
-                <div className="flex h-full w-5 flex-col justify-end sm:w-7">
-                  <span className="mb-1 text-center text-[0.625rem] font-bold text-success">
-                    {item.expected}
-                  </span>
-                  <span
-                    className="block min-h-1 rounded-t bg-success"
-                    style={{ height: `${Math.max(4, (item.expected / max) * 76)}%` }}
-                  />
-                </div>
-              </div>
-              <span className="mt-2 max-w-full truncate text-center text-[0.625rem] font-bold text-muted-foreground sm:text-xs">
-                {item.label}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -702,97 +708,99 @@ export function GradeTrendChart({
           A = 5
         </span>
       </div>
-      <div className="relative mt-4 h-40 pl-6">
-        <div className="absolute inset-y-4 left-0 flex flex-col justify-between text-[0.5625rem] font-bold text-muted-foreground">
-          <span>A</span>
-          <span>B</span>
-          <span>C</span>
-          <span>D</span>
-          <span>E</span>
-        </div>
-        <svg
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          className="h-32 w-full overflow-visible"
-          aria-hidden="true"
-        >
-          {[16, 34, 52, 70, 88].map((y) => (
-            <line
-              key={y}
-              x1="0"
-              x2="100"
-              y1={y}
-              y2={y}
-              className="stroke-border"
-              strokeWidth="0.5"
-            />
-          ))}
-          <polygon points={areaPoints} className="fill-primary/10" />
-          <polyline
-            points={linePoints}
-            fill="none"
-            className="stroke-primary"
-            strokeWidth="2.5"
-            vectorEffect="non-scaling-stroke"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {points.map((point) => (
-            <circle
-              key={`${point.label}-${point.x}`}
-              cx={point.x}
-              cy={point.y}
-              r="2.8"
-              className="fill-card stroke-primary"
-              strokeWidth="2"
+      <div className="overflow-x-auto">
+        <div className="relative mt-10 h-40 pl-6" style={{ minWidth: points.length * 44 + 24 }}>
+          <div className="absolute inset-y-4 left-0 flex flex-col justify-between text-[0.5625rem] font-bold text-muted-foreground">
+            <span>A</span>
+            <span>B</span>
+            <span>C</span>
+            <span>D</span>
+            <span>E</span>
+          </div>
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            className="h-32 w-full overflow-visible"
+            aria-hidden="true"
+          >
+            {[16, 34, 52, 70, 88].map((y) => (
+              <line
+                key={y}
+                x1="0"
+                x2="100"
+                y1={y}
+                y2={y}
+                className="stroke-border"
+                strokeWidth="0.5"
+              />
+            ))}
+            <polygon points={areaPoints} className="fill-primary/10" />
+            <polyline
+              points={linePoints}
+              fill="none"
+              className="stroke-primary"
+              strokeWidth="2.5"
               vectorEffect="non-scaling-stroke"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-          ))}
-        </svg>
-        <div className="absolute inset-x-6 top-0 h-32" aria-label="Grade development chart">
-          {points.map((point) => (
-            <div
-              key={`${point.label}-interactive`}
-              className="group absolute z-10 -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${point.x}%`, top: `${point.y}%` }}
-            >
+            {points.map((point) => (
+              <circle
+                key={`${point.label}-${point.x}`}
+                cx={point.x}
+                cy={point.y}
+                r="2.8"
+                className="fill-card stroke-primary"
+                strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+          </svg>
+          <div className="absolute top-0 right-0 left-6 h-32" aria-label="Grade development chart">
+            {points.map((point) => (
               <div
-                role="tooltip"
-                className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-40 -translate-x-1/2 rounded-lg border border-border bg-foreground px-3 py-2 text-center text-[0.6875rem] font-semibold leading-4 text-background opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                key={`${point.label}-interactive`}
+                className="group absolute z-10 -translate-x-1/2 -translate-y-1/2"
+                style={{ left: `${point.x}%`, top: `${point.y}%` }}
               >
-                <span className="block font-bold">{point.label}</span>
-                <span className="block">
-                  {label}: {point.value.toFixed(1)}
-                </span>
+                <div
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-40 -translate-x-1/2 rounded-lg border border-border bg-foreground px-3 py-2 text-center text-[0.6875rem] font-semibold leading-4 text-background opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  <span className="block font-bold">{point.label}</span>
+                  <span className="block">
+                    {label}: {point.value.toFixed(1)}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`${point.label}. ${label}: ${point.value.toFixed(1)}.`}
+                  className="size-10 rounded-full p-0 hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <span
+                    className="size-2.5 rounded-full bg-primary ring-4 ring-card"
+                    aria-hidden="true"
+                  />
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`${point.label}. ${label}: ${point.value.toFixed(1)}.`}
-                className="size-9 rounded-full p-0 hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary"
+            ))}
+          </div>
+          <div
+            className="absolute right-0 bottom-0 left-6 grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}
+          >
+            {points.map((point) => (
+              <span
+                key={point.label}
+                className="truncate text-center text-[0.625rem] font-bold text-muted-foreground sm:text-xs"
               >
-                <span
-                  className="size-2.5 rounded-full bg-primary ring-4 ring-card"
-                  aria-hidden="true"
-                />
-              </Button>
-            </div>
-          ))}
-        </div>
-        <div
-          className="absolute inset-x-6 bottom-0 grid gap-2"
-          style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}
-        >
-          {points.map((point) => (
-            <span
-              key={point.label}
-              className="truncate text-center text-[0.625rem] font-bold text-muted-foreground sm:text-xs"
-            >
-              {point.label}
-              <span className="ml-1 text-primary">{point.value.toFixed(1)}</span>
-            </span>
-          ))}
+                {point.label}
+                <span className="ml-1 text-primary">{point.value.toFixed(1)}</span>
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>

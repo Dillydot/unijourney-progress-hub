@@ -4,13 +4,13 @@ import {
   detailsFromCourseStore,
   eventsFromPlan,
   examPeriodsFromPage,
-  newsFromPage,
   plannedCredits,
   nextDeadline,
   planFromProgrammeStore,
   readEmbeddedJson,
   termOf,
   withDetails,
+  withVerifiedPeriods,
 } from "./kth";
 
 // Trimmed copies of the public pages kth.se/student/kurser/program/TTBEM/20252/arskurs1 and kurs/ME2003.
@@ -124,19 +124,104 @@ test("planned credits: mandatory courses not started, spanning courses counted o
   expect(plannedCredits(plan, ["ME2620", "ME2003"])).toBe(0);
 });
 
-test("news articles from the KTH news archive, English and Swedish", () => {
-  const en = newsFromPage(fixture("kth-news-en.html"));
-  expect(en).toHaveLength(2);
-  expect(en[1]).toMatchObject({
-    title: "Disabling cells’ ‘clean-up crew’ could speed drug target production",
-    date: "2026-11-18",
-    href: "https://www.kth.se/en/om/nyheter/centrala-nyheter/disabling-cells-clean-up-crew-could-speed-drug-target-production-1.1509159",
-    imageAlt: "man in lab",
+test("keeps syllabus courses whose study period or teaching dates have not been published", () => {
+  const plan = planFromProgrammeStore({
+    programmeName: "Sample",
+    lengthInStudyYears: 2,
+    curriculums: [
+      {
+        studyYears: [
+          {
+            yearNumber: 2,
+            courses: [
+              {
+                kod: "ME210X",
+                benamning: "Degree project",
+                Valvillkor: "O",
+                omfattning: { number: 30 },
+                Tillfallesperioder: [
+                  {
+                    ForstaUndervisningsdatum: "2028-01-18",
+                    SistaUndervisningsdatum: "2028-06-02",
+                  },
+                ],
+              },
+              {
+                kod: "ME2625",
+                benamning: "Entrepreneurship",
+                Valvillkor: "O",
+                omfattning: { number: 15 },
+              },
+            ],
+          },
+        ],
+      },
+    ],
   });
-  expect(en[1]?.image).toStartWith("https://www.kth.se/polopoly_fs/");
-  expect(en[1]?.summary).toStartWith("With an unusual genetic modification");
-  const sv = newsFromPage(fixture("kth-news-sv.html"));
-  expect(sv[0]).toMatchObject({ date: "2026-11-18" });
-  expect(sv[0]?.title).toStartWith("Fem nordiska universitet");
-  expect(() => newsFromPage("<html></html>")).toThrow();
+
+  expect(plan.courses.find((course) => course.code === "ME210X")).toMatchObject({
+    year: 2,
+    period: "",
+    semester: "Spring 2028",
+    credits: 30,
+  });
+  expect(plan.courses.find((course) => course.code === "ME2625")).toMatchObject({
+    year: 2,
+    period: "",
+    dates: "",
+    credits: 15,
+  });
+  expect(eventsFromPlan(plan, []).map((event) => event.code)).toEqual(["ME210X", "ME210X"]);
+});
+
+test("uses published periods only for an unambiguous offering in the same cohort and term", () => {
+  const plan = planFromProgrammeStore({
+    programmeName: "Machine Design",
+    lengthInStudyYears: 2,
+    curriculums: [
+      {
+        studyYears: [
+          {
+            yearNumber: 1,
+            courses: [
+              {
+                kod: "MF2010",
+                benamning: "Component Design",
+                Valvillkor: "O",
+                omfattning: { number: 6 },
+                Tillfallesperioder: [
+                  {
+                    ForstaUndervisningsdatum: "2026-08-24",
+                    SistaUndervisningsdatum: "2027-01-11",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  const offering = {
+    round_application_code: "10585",
+    round_periods: "<p>Autumn 2026: P2 (6 hp)</p>",
+    round_part_of_programme:
+      '<a href="/student/kurser/program/TMSKM/20262/arskurs1">Machine Design</a>',
+  };
+  const details = (rounds: (typeof offering)[]) => ({
+    MF2010: detailsFromCourseStore({ courseData: { roundsBySemester: { "20262": rounds } } }),
+  });
+  expect(withVerifiedPeriods(plan, details([offering]), "TMSKM", "20262").courses[0]?.period).toBe(
+    "P2",
+  );
+  expect(withVerifiedPeriods(plan, details([offering]), "TMSKM", "20272")).toEqual(plan);
+  expect(withVerifiedPeriods(plan, details([offering, offering]), "TMSKM", "20262")).toEqual(plan);
+  expect(
+    withVerifiedPeriods(
+      plan,
+      details([{ ...offering, round_periods: "P2 (4 hp)" }]),
+      "TMSKM",
+      "20262",
+    ),
+  ).toEqual(plan);
 });
