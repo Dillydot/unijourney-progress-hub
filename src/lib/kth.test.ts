@@ -122,3 +122,53 @@ test("planned credits: mandatory courses not started, spanning courses counted o
   expect(plannedCredits(plan, ["ME2620"])).toBe(7.5);
   expect(plannedCredits(plan, ["ME2620", "ME2003"])).toBe(0);
 });
+
+test("keeps syllabus courses whose study period or teaching dates have not been published", () => {
+  const plan = planFromProgrammeStore({
+    programmeName: "Sample",
+    lengthInStudyYears: 2,
+    curriculums: [
+      {
+        studyYears: [
+          {
+            yearNumber: 2,
+            courses: [
+              {
+                kod: "ME210X",
+                benamning: "Degree project",
+                Valvillkor: "O",
+                omfattning: { number: 30 },
+                Tillfallesperioder: [
+                  {
+                    ForstaUndervisningsdatum: "2028-01-18",
+                    SistaUndervisningsdatum: "2028-06-02",
+                  },
+                ],
+              },
+              {
+                kod: "ME2625",
+                benamning: "Entrepreneurship",
+                Valvillkor: "O",
+                omfattning: { number: 15 },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  expect(plan.courses.find((course) => course.code === "ME210X")).toMatchObject({
+    year: 2,
+    period: "",
+    semester: "Spring 2028",
+    credits: 30,
+  });
+  expect(plan.courses.find((course) => course.code === "ME2625")).toMatchObject({
+    year: 2,
+    period: "",
+    dates: "",
+    credits: 15,
+  });
+  expect(eventsFromPlan(plan, []).map((event) => event.code)).toEqual(["ME210X", "ME210X"]);
+});

@@ -1,28 +1,56 @@
-import admissionsMark from "@/assets/admissions-mark.png";
-import { FilterSelect } from "@/components/dashboard/ProgressScreen";
-import { Button } from "@/components/ui/button";
-import type { CourseKind, PlanCourse, ProgrammePlan } from "@/lib/kth";
-import { Lang, ProgressCopy } from "@/lib/copy";
-import {
-  CalendarDays,
-  Clock,
-  ExternalLink,
-  Info,
-  Languages,
-  Layers,
-  MapPin,
-  UserRound,
-} from "lucide-react";
+import { getKthPlan, getKthProgrammes, getKthProgrammeTerms } from "@/lib/kth-api";
+import { kthSyllabusUrl } from "@/lib/kth-programmes";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import type { Lang, ProgressCopy } from "@/lib/copy";
+import type { PlanCourse, ProgrammePlan } from "@/lib/kth";
+import { ExternalLink, Info } from "lucide-react";
+
+const degreeLabels: Record<string, Record<Lang, string>> = {
+  TARKU: { en: "Architecture", sv: "Arkitekt" },
+  CING: { en: "Master of Science in Engineering", sv: "Civilingenjör" },
+  YHOGE: { en: "Bachelor of Science in Engineering", sv: "Högskoleingenjör" },
+  GKAND: { en: "Bachelor’s", sv: "Kandidat" },
+  HOGSK: { en: "Higher education diploma", sv: "Högskoleexamen" },
+  TMAST: { en: "Master’s", sv: "Master" },
+  GMAGB: { en: "One-year master’s", sv: "Magister" },
+  TBAS: { en: "Preparatory studies", sv: "Förberedande utbildning" },
+  OVRIGA: { en: "Other programmes", sv: "Övriga program" },
+};
+
+const schoolNames: Record<string, Record<Lang, string>> = {
+  ABE: {
+    en: "School of Architecture and the Built Environment",
+    sv: "Skolan för arkitektur och samhällsbyggnad",
+  },
+  CBH: {
+    en: "School of Engineering Sciences in Chemistry, Biotechnology and Health",
+    sv: "Skolan för kemi, bioteknologi och hälsa",
+  },
+  EECS: {
+    en: "School of Electrical Engineering and Computer Science",
+    sv: "Skolan för elektroteknik och datavetenskap",
+  },
+  ITM: {
+    en: "School of Industrial Engineering and Management",
+    sv: "Skolan för industriell teknik och management",
+  },
+  SCI: {
+    en: "School of Engineering Sciences",
+    sv: "Skolan för teknikvetenskap",
+  },
+};
 
 export function PlanScreen({
   lang,
   t,
-  plan,
-  loading,
-  failed,
+  plan: homePlan,
+  loading: homeLoading,
+  failed: homeFailed,
   programmeCode,
+  programmeTerm,
   myCodes,
+  demo,
 }: {
   lang: Lang;
   t: ProgressCopy;
@@ -30,299 +58,371 @@ export function PlanScreen({
   loading: boolean;
   failed: boolean;
   programmeCode: string;
+  programmeTerm: string;
   myCodes: string[];
+  demo: boolean;
 }) {
-  const [year, setYear] = useState(1);
-  const [semester, setSemester] = useState("all");
-  const [period, setPeriod] = useState("all");
-  const [kind, setKind] = useState<"all" | CourseKind>("all");
-  const yearCourses = (plan?.courses ?? []).filter((course) => course.year === year);
-  const semesters = [...new Set(yearCourses.map((course) => course.semester))];
-  const visible = yearCourses.filter(
-    (course) =>
-      (semester === "all" || course.semester === semester) &&
-      (period === "all" || course.period === period) &&
-      (kind === "all" || course.kind === kind),
+  const [degree, setDegree] = useState("");
+  const [school, setSchool] = useState("");
+  const [code, setCode] = useState("");
+  const [cohort, setCohort] = useState("");
+  const catalogue = useQuery({
+    queryKey: ["kth-programmes"],
+    queryFn: () => getKthProgrammes(),
+    staleTime: 12 * 60 * 60 * 1000,
+  });
+  const options = catalogue.data ?? [];
+  const degrees = [...new Set(options.map((programme) => programme.degree))];
+  const degreeProgrammes = options.filter((programme) => programme.degree === degree);
+  const schools = [
+    ...new Set(degreeProgrammes.map((programme) => programme.school || "unlisted")),
+  ].sort();
+  const programmeOptions = degreeProgrammes.filter(
+    (programme) => (programme.school || "unlisted") === school,
   );
-  const visibleCourseCount = new Set(visible.map((course) => course.code)).size;
-  const periodOrder = ["P1", "P2", "P3", "P4"];
-  const groups = periodOrder
-    .map((periodName) => ({
-      period: periodName,
-      courses: visible.filter((course) => course.period === periodName),
-    }))
-    .filter((group) => group.courses.length > 0);
-  const translateSemester = (value: string) => {
-    if (lang === "en") return value;
-    return value.replace("Autumn", "Höst").replace("Spring", "Vår");
-  };
+  const nameOf = (programme: (typeof options)[number]) =>
+    (lang === "sv" ? programme.titleSv : programme.title) || programme.title;
 
-  function changeYear(next: number) {
-    setYear(next);
-    setSemester("all");
-    setPeriod("all");
+  const cohorts = useQuery({
+    queryKey: ["kth-programme-terms", code],
+    queryFn: () => getKthProgrammeTerms({ data: code }),
+    enabled: Boolean(code),
+    staleTime: 12 * 60 * 60 * 1000,
+  });
+  const term = cohort || cohorts.data?.[0] || "";
+  const selectedPlan = useQuery({
+    queryKey: ["kth-programme-structure", code, term],
+    queryFn: () => getKthPlan({ data: { programmeCode: code, term, includeDetails: false } }),
+    enabled: Boolean(code && term),
+    staleTime: 12 * 60 * 60 * 1000,
+  });
+
+  const plan = code ? selectedPlan.data : homePlan;
+  const loading = code ? cohorts.isLoading || selectedPlan.isLoading : homeLoading;
+  const failed = code ? cohorts.isError || selectedPlan.isError : homeFailed;
+  const selectedProgramme = programmeOptions.find((programme) => programme.code === code);
+  const syllabusCode = code || (!demo && programmeCode !== "—" ? programmeCode : "");
+  const syllabusTerm = code ? term : programmeTerm;
+
+  const semesters = [
+    { label: t.autumnSemester, periods: ["P1", "P2"] },
+    { label: t.springSemester, periods: ["P3", "P4"] },
+  ];
+  const registered = new Set(myCodes);
+
+  function renderCourseGroups(courses: PlanCourse[]) {
+    return (["mandatory", "elective"] as const).map((kind) => {
+      const group = courses.filter((course) => course.kind === kind);
+      if (!group.length) return null;
+
+      return (
+        <div key={kind}>
+          <h5
+            className={`mb-1 text-xs font-bold ${kind === "mandatory" ? "text-primary" : "text-success"}`}
+          >
+            {kind === "mandatory" ? t.mandatoryCourses : t.electiveOptions}
+          </h5>
+          <ul className="space-y-1">
+            {group.map((course) => (
+              <li key={`${course.code}-${course.applicationCode}`}>
+                <PlanCourseCard
+                  course={course}
+                  t={t}
+                  lang={lang}
+                  mine={registered.has(course.code)}
+                  demo={demo && !code}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    });
   }
 
   return (
-    <section id="courses" className="card-enter scroll-mt-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="section-label">{programmeCode}</p>
-          <h1 className="mt-1 font-display text-2xl font-bold md:text-3xl">{t.planTitle}</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">{t.planIntro}</p>
-        </div>
-        {plan && (
-          <span className="rounded-full bg-primary-soft px-3 py-1.5 text-xs font-bold text-primary">
-            {t.programmeSummary(plan.years)}
-          </span>
+    <section id="courses" className="card-enter scroll-mt-6 space-y-3">
+      <header>
+        <p className="section-label">{code || programmeCode}</p>
+        <h1 className="mt-1 font-display text-2xl font-bold md:text-3xl">{t.planTitle}</h1>
+        {(selectedProgramme || plan) && (
+          <p className="mt-1 text-sm text-muted-foreground">
+            {selectedProgramme ? nameOf(selectedProgramme) : plan?.name}
+          </p>
         )}
-      </div>
+        {syllabusCode && (
+          <a
+            href={kthSyllabusUrl(syllabusCode, syllabusTerm, lang)}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+          >
+            {t.officialSyllabus}
+            <ExternalLink className="size-4" aria-hidden="true" />
+          </a>
+        )}
+      </header>
+
+      <section className="space-y-2 rounded-xl border border-border bg-card p-3 shadow-card">
+        <h2 className="text-sm font-bold">{t.browseKthProgrammes}</h2>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <ProgrammeSelect
+            label={t.degreeType}
+            value={degree}
+            placeholder={t.chooseDegree}
+            disabled={!catalogue.data}
+            onChange={(value) => {
+              setDegree(value);
+              setSchool("");
+              setCode("");
+              setCohort("");
+            }}
+          >
+            {degrees.map((value) => (
+              <option key={value} value={value}>
+                {degreeLabels[value]?.[lang] ?? value}
+              </option>
+            ))}
+          </ProgrammeSelect>
+          <ProgrammeSelect
+            label={t.kthSchool}
+            value={school}
+            placeholder={t.chooseSchool}
+            disabled={!degree}
+            onChange={(value) => {
+              setSchool(value);
+              setCode("");
+              setCohort("");
+            }}
+          >
+            {schools.map((value) => {
+              const name = schoolNames[value]?.[lang];
+              return (
+                <option key={value} value={value}>
+                  {value === "unlisted" ? t.unlistedSchool : name ? `${value} (${name})` : value}
+                </option>
+              );
+            })}
+          </ProgrammeSelect>
+          <ProgrammeSelect
+            label={t.programme}
+            value={code}
+            placeholder={t.chooseProgramme}
+            disabled={!school}
+            onChange={(value) => {
+              setCode(value);
+              setCohort("");
+            }}
+          >
+            {programmeOptions
+              .sort((a, b) => nameOf(a).localeCompare(nameOf(b), lang))
+              .map((programme) => (
+                <option key={programme.code} value={programme.code}>
+                  {nameOf(programme)} ({programme.code})
+                </option>
+              ))}
+          </ProgrammeSelect>
+          <ProgrammeSelect
+            label={t.admissionCohort}
+            value={term}
+            placeholder={t.chooseCohort}
+            disabled={!cohorts.data?.length}
+            onChange={setCohort}
+          >
+            {cohorts.data?.map((value) => (
+              <option key={value} value={value}>
+                {value.endsWith("2") ? t.autumnSemester : t.springSemester} {value.slice(0, 4)}
+              </option>
+            ))}
+          </ProgrammeSelect>
+        </div>
+        {catalogue.isLoading && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {t.catalogueLoading}
+          </p>
+        )}
+        {catalogue.isError && (
+          <p role="alert" className="text-sm text-muted-foreground">
+            {t.catalogueFailed}{" "}
+            <a
+              href="https://www.kth.se/student/kurser/kurser-inom-program"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-primary underline"
+            >
+              {t.officialSyllabus}
+            </a>
+          </p>
+        )}
+      </section>
 
       {!plan ? (
-        <div
-          className="mt-4 rounded-2xl border border-dashed border-border py-8 text-center text-sm font-semibold text-muted-foreground"
+        <p
+          className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground"
           role={failed ? "alert" : "status"}
         >
-          {loading ? t.planLoading : t.planFailed}
-        </div>
+          {loading ? t.planLoading : code && !term && !failed ? t.noPublishedCohorts : t.planFailed}
+        </p>
       ) : (
         <>
-          <div
-            className="mt-4 grid rounded-xl bg-secondary p-1"
-            style={{ gridTemplateColumns: `repeat(${plan.years}, minmax(0, 1fr))` }}
-            aria-label={t.studyYear}
-          >
-            {Array.from({ length: plan.years }, (_, i) => i + 1).map((value) => (
-              <Button
-                key={value}
-                type="button"
-                variant={year === value ? "default" : "ghost"}
-                onClick={() => changeYear(value)}
-                aria-pressed={year === value}
-                className="h-9"
-              >
-                {t.yearN(value)}
-              </Button>
-            ))}
-          </div>
-
-          <div className="mt-3 grid gap-3 rounded-2xl border border-border bg-card p-3 shadow-card sm:grid-cols-3">
-            <FilterSelect
-              label={t.semester}
-              value={semester}
-              onChange={setSemester}
-              options={[
-                ["all", t.allSemesters],
-                ...semesters.map((value): [string, string] => [value, translateSemester(value)]),
-              ]}
-            />
-            <FilterSelect
-              label={t.studyPeriod}
-              value={period}
-              onChange={setPeriod}
-              options={[
-                ["all", t.allPeriods],
-                ...periodOrder.map((value): [string, string] => [
-                  value,
-                  `${t.studyPeriod} ${value.slice(1)}`,
-                ]),
-              ]}
-            />
-            <FilterSelect
-              label={t.courseType}
-              value={kind}
-              onChange={(value) => setKind(value as "all" | CourseKind)}
-              options={[
-                ["all", t.allCourseTypes],
-                ["mandatory", t.mandatory],
-                ["elective", t.elective],
-              ]}
-            />
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-bold">{t.coursesFound(visibleCourseCount)}</p>
-            {plan.notes.map((note) => (
-              <p
-                key={note}
-                className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"
-              >
-                <Info className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                {note}
-              </p>
-            ))}
-          </div>
-
-          {groups.length ? (
-            <div className="mt-3 space-y-4">
-              {groups.map((group) => {
-                const firstCourse = group.courses[0];
-                if (!firstCourse) return null;
-                return (
-                  <section key={group.period} aria-labelledby={`plan-${group.period}`}>
-                    <div className="mb-2 flex items-center gap-2.5">
-                      <span className="grid size-8 place-items-center rounded-lg bg-primary font-display text-xs font-bold text-primary-foreground">
-                        {group.period}
-                      </span>
-                      <div>
-                        <h2
-                          id={`plan-${group.period}`}
-                          className="font-display text-base font-bold leading-5"
-                        >
-                          {t.studyPeriod} {group.period.slice(1)}
-                        </h2>
-                        <p className="text-[0.6875rem] font-semibold text-muted-foreground">
-                          {translateSemester(firstCourse.semester)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3">
-                      {group.courses.map((course) => (
-                        <PlanCourseCard
-                          key={`${course.code}-${course.applicationCode}-${course.period}`}
-                          course={course}
-                          mine={myCodes.includes(course.code)}
-                          t={t}
-                          lang={lang}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="mt-3 rounded-2xl border border-dashed border-border py-8 text-center text-sm font-semibold text-muted-foreground">
-              {t.noPlannedCourses}
+          {plan.notes.length > 0 && (
+            <div className="flex items-start gap-2 rounded-xl border border-border bg-primary-soft p-3 text-sm">
+              <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              <ul className="space-y-1">
+                {plan.notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
             </div>
           )}
+          {Array.from({ length: Math.ceil(plan.years) }, (_, index) => index + 1).map((year) => {
+            const yearCourses = plan.courses.filter((course) => course.year === year);
+            const yearHeading = `plan-year-${year}`;
+            const otherCourses = yearCourses.filter(
+              (course) => !semesters.some(({ periods }) => periods.includes(course.period)),
+            );
+
+            return (
+              <section
+                key={year}
+                aria-labelledby={yearHeading}
+                className="overflow-hidden rounded-2xl border border-border bg-card shadow-card"
+              >
+                <h2
+                  id={yearHeading}
+                  className="bg-primary-soft px-3 py-2 font-display text-lg font-bold text-primary"
+                >
+                  {t.yearN(year)}
+                </h2>
+                <div className="grid divide-y divide-border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+                  {semesters.map(({ label, periods }) => {
+                    const calendarYear = yearCourses
+                      .find((course) => periods.includes(course.period))
+                      ?.semester.match(/\b\d{4}\b/)?.[0];
+
+                    return (
+                      <section key={label} className="min-w-0 space-y-2 p-2.5">
+                        <h3 className="font-display text-base font-bold">
+                          {label}
+                          {calendarYear ? ` ${calendarYear}` : ""}
+                        </h3>
+                        <div className="grid gap-2 min-[380px]:grid-cols-2">
+                          {periods.map((period) => {
+                            const periodCourses = yearCourses.filter(
+                              (course) => course.period === period,
+                            );
+
+                            return (
+                              <section
+                                key={period}
+                                className="min-w-0 space-y-2 rounded-lg bg-secondary/55 p-2"
+                              >
+                                <h4 className="text-sm font-bold">
+                                  {t.studyPeriod} {period.slice(1)}
+                                </h4>
+                                {periodCourses.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    {t.noPlannedCourses}
+                                  </p>
+                                ) : (
+                                  renderCourseGroups(periodCourses)
+                                )}
+                              </section>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+                {otherCourses.length > 0 && (
+                  <section className="space-y-2 border-t border-border p-2.5">
+                    <h4 className="text-sm font-bold">{t.otherStudyPeriods}</h4>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {renderCourseGroups(otherCourses)}
+                    </div>
+                  </section>
+                )}
+              </section>
+            );
+          })}
         </>
       )}
     </section>
   );
 }
 
-export function PlanCourseCard({
+function ProgrammeSelect({
+  label,
+  value,
+  placeholder,
+  disabled,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="min-w-0 space-y-1.5 text-xs font-semibold">
+      <span className="block">{label}</span>
+      <select
+        className="h-11 w-full min-w-0 truncate rounded-lg border border-border bg-background px-2 text-base md:text-sm focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">{placeholder}</option>
+        {children}
+      </select>
+    </label>
+  );
+}
+
+function PlanCourseCard({
   course,
   t,
   lang,
   mine,
+  demo,
 }: {
   course: PlanCourse;
   t: ProgressCopy;
   lang: Lang;
   mine: boolean;
+  demo: boolean;
 }) {
-  const teacherUrl = course.examinerUrl;
-  const location = course.location ?? t.defaultLocation;
-  const language = course.language ?? t.defaultLanguage;
-  const duration = course.spansTwoPeriods ? t.twoPeriods : t.onePeriod;
-  const kthUrl = `https://www.kth.se/student/kurser/kurs/${course.code}?l=${lang === "sv" ? "sv" : "en"}`;
-  const admissionUrl =
-    lang === "sv"
-      ? `https://www.antagning.se/se/search?query=${course.code}`
-      : `https://www.universityadmissions.se/intl/search?query=${course.code}`;
-  const facts: Array<{ icon: typeof MapPin; label: string; value: React.ReactNode }> = [
-    { icon: CalendarDays, label: t.teachingDates, value: course.dates },
-    { icon: Layers, label: t.periodLabel, value: course.period },
-    { icon: Clock, label: t.durationLabel, value: duration },
-    { icon: MapPin, label: t.locationLabel, value: location },
-    { icon: Languages, label: t.languageLabel, value: language },
-    {
-      icon: UserRound,
-      label: t.responsibleTeacher,
-      value: course.examiner ? (
-        teacherUrl ? (
-          <a
-            href={teacherUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="truncate text-primary underline decoration-primary/40 underline-offset-2 transition-colors hover:decoration-primary"
-          >
-            {course.examiner}
-          </a>
-        ) : (
-          course.examiner
-        )
-      ) : (
-        t.teacherUnavailable
-      ),
-    },
-  ];
+  const courseUrl = demo
+    ? `https://www.kth.se/student/kurser/sokkurs?l=${lang}`
+    : `https://www.kth.se/student/kurser/kurs/${encodeURIComponent(course.code)}?l=${lang}`;
+
   return (
-    <article className="flex flex-col rounded-xl border border-border bg-card p-3 shadow-card transition-colors hover:border-primary/40">
-      <div className="flex items-center gap-2">
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold ${course.kind === "mandatory" ? "bg-primary-soft text-primary" : "bg-success-soft text-success"}`}
-        >
-          {course.kind === "mandatory" ? t.mandatory : t.elective}
-        </span>
-        <span className="truncate text-[0.6875rem] font-bold text-primary">{course.code}</span>
-        {mine && (
-          <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[0.625rem] font-bold text-foreground">
-            {t.yourCourse}
-          </span>
-        )}
-        <span className="ml-auto shrink-0 text-[0.6875rem] font-bold tabular-nums">
+    <a
+      href={courseUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="block min-h-11 space-y-0.5 rounded-md border border-border bg-card px-2 py-1.5 transition-colors hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-primary"
+      aria-label={`${course.name} · ${demo ? t.kthCatalogue : t.officialCoursePage}`}
+    >
+      <div className="flex items-start justify-between gap-1.5">
+        <p className="text-xs leading-tight font-bold wrap-anywhere">{course.name}</p>
+        <ExternalLink className="mt-0.5 size-3 shrink-0 text-primary" aria-hidden="true" />
+      </div>
+      <p className="flex flex-wrap items-center gap-x-2 text-[11px] leading-tight font-semibold text-muted-foreground">
+        <span>{course.code}</span>
+        <span>
           {course.credits} {t.ectsUnit}
+          {course.spansTwoPeriods ? ` · ${course.period}` : ""}
         </span>
-      </div>
-      <h3 className="mt-1.5 line-clamp-2 text-sm font-bold leading-5">{course.name}</h3>
-      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-border pt-2 text-[0.6875rem] leading-4">
-        {facts.map(({ icon: Icon, label, value }) => (
-          <div key={label} className="flex min-w-0 items-start gap-1.5">
-            <Icon className="mt-0.5 size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <div className="min-w-0">
-              <dt className="sr-only">{label}</dt>
-              <dd className="truncate font-semibold text-muted-foreground" title={label}>
-                {value}
-              </dd>
-            </div>
-          </div>
-        ))}
-      </dl>
-      <div className="mt-2.5 flex gap-2 border-t border-border pt-2.5">
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="h-7 flex-1 gap-1 rounded-lg px-2 text-[0.6875rem] font-bold"
-        >
-          <a href={kthUrl} target="_blank" rel="noreferrer">
-            <ExternalLink className="size-3" aria-hidden="true" />
-            KTH
-          </a>
-        </Button>
-        {course.scheduleUrl && (
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="h-7 flex-1 gap-1 rounded-lg px-2 text-[0.6875rem] font-bold"
-          >
-            <a href={course.scheduleUrl} target="_blank" rel="noreferrer">
-              <CalendarDays className="size-3" aria-hidden="true" />
-              {t.schedule}
-            </a>
-          </Button>
-        )}
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="h-7 flex-1 gap-1 rounded-lg px-2 text-[0.6875rem] font-bold"
-        >
-          <a
-            href={admissionUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={lang === "sv" ? "Öppna antagning.se" : "Open universityadmissions.se"}
-            title={lang === "sv" ? "antagning.se" : "universityadmissions.se"}
-          >
-            <img src={admissionsMark} alt="" className="size-5 object-contain" aria-hidden="true" />
-          </a>
-        </Button>
-      </div>
-    </article>
+        {mine && <span className="text-primary">{t.yourCourse}</span>}
+      </p>
+      {course.dates && (
+        <p className="text-[11px] leading-tight text-muted-foreground">{course.dates}</p>
+      )}
+    </a>
   );
 }

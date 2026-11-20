@@ -8,6 +8,8 @@ export const newsCopy = {
   en: {
     label: "KTH News",
     title: "News from KTH",
+    latest: "Latest news",
+    viewAll: "View all news",
     intro:
       "The latest stories from KTH. Choose which notifications you want on the Profile screen.",
     notifyTitle: "Notify me about",
@@ -35,6 +37,8 @@ export const newsCopy = {
   sv: {
     label: "KTH-nyheter",
     title: "Nyheter från KTH",
+    latest: "Senaste nyheterna",
+    viewAll: "Visa alla nyheter",
     intro: "De senaste nyheterna från KTH. Välj vilka notiser du vill få på profilsidan.",
     notifyTitle: "Notiser om",
     notifyIntro: "Välj vilka notiser du vill få.",
@@ -160,14 +164,14 @@ export function NewsScreen({ lang }: { lang: Lang }) {
         <p className="mt-1 text-sm text-muted-foreground">{c.intro}</p>
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto rounded-full bg-secondary p-1">
+      <div className="flex flex-wrap gap-1.5 rounded-2xl bg-secondary p-1.5">
         {(["all", ...cats] as const).map((k) => (
           <button
             key={k}
             type="button"
             aria-pressed={filter === k}
             onClick={() => setFilter(k)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${filter === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+            className={`min-h-10 rounded-full px-3 py-1.5 text-xs font-semibold touch-manipulation ${filter === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
           >
             {k === "all" ? c.all : c.cats[k]}
           </button>
@@ -176,8 +180,11 @@ export function NewsScreen({ lang }: { lang: Lang }) {
 
       <ul className="grid gap-3 md:grid-cols-2">
         {items.map((n) => (
-          <li key={n.id} className="rounded-2xl border border-border bg-card p-3 shadow-card">
-            <div className="flex items-center justify-between gap-2 text-xs">
+          <li
+            key={n.id}
+            className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-card"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="rounded-full bg-primary-soft px-2 py-0.5 font-semibold text-primary">
                 {c.cats[n.category]}
               </span>
@@ -187,7 +194,7 @@ export function NewsScreen({ lang }: { lang: Lang }) {
               </span>
             </div>
             <h3 className="mt-1.5 text-sm font-bold leading-snug">{n.title}</h3>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{n.summary}</p>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">{n.summary}</p>
             <a
               href={
                 lang === "sv"
@@ -196,7 +203,7 @@ export function NewsScreen({ lang }: { lang: Lang }) {
               }
               target="_blank"
               rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary"
+              className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary"
             >
               {c.read} <ExternalLink className="size-3.5" aria-hidden="true" />
             </a>

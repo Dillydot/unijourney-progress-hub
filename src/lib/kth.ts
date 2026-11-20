@@ -60,13 +60,14 @@ type StoreCourse = {
   kod: string;
   benamning: string;
   Valvillkor: string;
-  tillfalleskod: string;
+  tillfalleskod?: string;
+  omfattning?: { number: number };
   Tillfallesperioder?: Array<{
     ForstaRegistreringsdatum?: string;
     SistaRegistreringsdatum?: string;
-    ForstaUndervisningsdatum: string;
-    SistaUndervisningsdatum: string;
-    Lasperiodsfordelning: Array<{ Lasperiodskod: string; Omfattningsvarde: number }>;
+    ForstaUndervisningsdatum?: string;
+    SistaUndervisningsdatum?: string;
+    Lasperiodsfordelning?: Array<{ Lasperiodskod: string; Omfattningsvarde: number }>;
   }>;
 };
 type ProgrammeStore = {
@@ -95,33 +96,39 @@ export function planFromProgrammeStore(raw: unknown): ProgrammePlan {
       if (note) notes.add(note);
       for (const c of year.courses) {
         const round = c.Tillfallesperioder?.[0];
-        if (!round || seen.has(`${year.yearNumber}-${c.kod}-${c.tillfalleskod}`)) continue;
+        if (seen.has(`${year.yearNumber}-${c.kod}-${c.tillfalleskod}`)) continue;
         seen.add(`${year.yearNumber}-${c.kod}-${c.tillfalleskod}`);
-        const start = round.ForstaUndervisningsdatum;
-        const end = round.SistaUndervisningsdatum;
+        const start = round?.ForstaUndervisningsdatum ?? "";
+        const end = round?.SistaUndervisningsdatum ?? "";
         const startYear =
           Number(start.slice(5, 7)) >= 7
             ? Number(start.slice(0, 4))
             : Number(start.slice(0, 4)) - 1;
-        const periods = round.Lasperiodsfordelning;
-        for (const p of periods)
+        const periods = round?.Lasperiodsfordelning ?? [];
+        const allocations = periods.length
+          ? periods
+          : [{ Lasperiodskod: "", Omfattningsvarde: c.omfattning?.number ?? 0 }];
+        for (const p of allocations)
           courses.push({
             year: year.yearNumber,
-            semester: ["P1", "P2"].includes(p.Lasperiodskod)
-              ? `Autumn ${startYear}`
-              : `Spring ${startYear + 1}`,
+            semester: start
+              ? ["P1", "P2"].includes(p.Lasperiodskod) ||
+                (!p.Lasperiodskod && Number(start.slice(5, 7)) >= 7)
+                ? `Autumn ${startYear}`
+                : `Spring ${startYear + 1}`
+              : "",
             period: p.Lasperiodskod,
             kind: c.Valvillkor === "O" ? "mandatory" : "elective",
             code: c.kod,
             name: c.benamning,
             credits: p.Omfattningsvarde,
-            dates: dateRange(start, end),
+            dates: start && end ? dateRange(start, end) : "",
             start,
             end,
-            firstRegistration: round.ForstaRegistreringsdatum ?? null,
-            lastRegistration: round.SistaRegistreringsdatum ?? null,
+            firstRegistration: round?.ForstaRegistreringsdatum ?? null,
+            lastRegistration: round?.SistaRegistreringsdatum ?? null,
             spansTwoPeriods: periods.length > 1,
-            applicationCode: c.tillfalleskod,
+            applicationCode: c.tillfalleskod ?? "",
           });
       }
     }
@@ -288,24 +295,25 @@ export function eventsFromPlan(plan: ProgrammePlan, myCodes: string[]): PlanEven
   const events: PlanEvent[] = [];
   for (const [id, c] of rounds) {
     const courseHref = c.scheduleUrl ?? `https://www.kth.se/student/kurser/kurs/${c.code}?l=en`;
-    events.push(
-      {
-        id: `${id}-start`,
-        date: c.start,
-        kind: "course",
-        title: `${c.name} starts`,
-        code: c.code,
-        href: courseHref,
-      },
-      {
-        id: `${id}-end`,
-        date: c.end,
-        kind: "course",
-        title: `Last teaching day: ${c.name}`,
-        code: c.code,
-        href: courseHref,
-      },
-    );
+    if (c.start && c.end)
+      events.push(
+        {
+          id: `${id}-start`,
+          date: c.start,
+          kind: "course",
+          title: `${c.name} starts`,
+          code: c.code,
+          href: courseHref,
+        },
+        {
+          id: `${id}-end`,
+          date: c.end,
+          kind: "course",
+          title: `Last teaching day: ${c.name}`,
+          code: c.code,
+          href: courseHref,
+        },
+      );
     // Registration only matters for courses the student isn't registered on yet.
     if (!mine.has(c.code)) {
       if (c.firstRegistration)

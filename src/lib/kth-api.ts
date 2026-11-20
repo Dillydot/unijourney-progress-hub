@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { kthSyllabusUrl, programmesFromCatalogue, termsFromProgramme } from "./kth-programmes";
 import {
   detailsFromCourseStore,
   examPeriodsFromPage,
@@ -31,18 +32,40 @@ export const getKthExamPeriods = createServerFn({ method: "GET" }).handler(async
   ),
 );
 
+const PROGRAMME_STORE = "__compressedApplicationStore__";
+const validProgrammeCode = /^[A-ZÅÄÖ0-9]{1,6}$/;
+
+export const getKthProgrammes = createServerFn({ method: "GET" }).handler(async () =>
+  programmesFromCatalogue(
+    readEmbeddedJson(
+      await page("https://www.kth.se/student/kurser/kurser-inom-program?l=en"),
+      PROGRAMME_STORE,
+    ),
+  ),
+);
+
+export const getKthProgrammeTerms = createServerFn({ method: "GET" })
+  .validator((code: string) => {
+    if (!validProgrammeCode.test(code)) throw new Error("Invalid programme code");
+    return code;
+  })
+  .handler(async ({ data }) =>
+    termsFromProgramme(
+      readEmbeddedJson(await page(kthSyllabusUrl(data, "", "en")), PROGRAMME_STORE),
+    ),
+  );
+
 export const getKthPlan = createServerFn({ method: "GET" })
-  .validator((input: { programmeCode: string; term: string }) => {
+  .validator((input: { programmeCode: string; term: string; includeDetails?: boolean }) => {
     // Values end up in a kth.se URL path: allow only real programme codes and terms.
-    if (!/^[A-Z0-9]{4,6}$/.test(input.programmeCode) || !/^\d{4}[12]$/.test(input.term))
+    if (!validProgrammeCode.test(input.programmeCode) || !/^\d{4}[12]$/.test(input.term))
       throw new Error("Invalid programme code or term");
     return input;
   })
   .handler(async ({ data }) => {
-    const html = await page(
-      `https://www.kth.se/student/kurser/program/${data.programmeCode}/${data.term}/arskurs1?l=en`,
-    );
-    const plan = planFromProgrammeStore(readEmbeddedJson(html, "__compressedApplicationStore__"));
+    const html = await page(kthSyllabusUrl(data.programmeCode, data.term, "en"));
+    const plan = planFromProgrammeStore(readEmbeddedJson(html, PROGRAMME_STORE));
+    if (data.includeDetails === false) return plan;
 
     // Examiner and TimeEdit link live on each course page; a failing page just leaves them out.
     const codes = [...new Set(plan.courses.map((c) => c.code))];
