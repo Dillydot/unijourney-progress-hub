@@ -99,6 +99,8 @@ function AuthenticatedDashboard({ session, lang, setLang }: LanguageProps & { se
 
   useEffect(() => {
     void load();
+    // Counts today as active for admin retention; failing is harmless. .then() sends the request.
+    void supabase.rpc("track_activity").then();
   }, []);
   if (loadError)
     return (
