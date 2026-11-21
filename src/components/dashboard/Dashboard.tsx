@@ -197,6 +197,14 @@ export function Dashboard({
     window.scrollTo({ top: 0 });
   }
 
+  const uploadTime = view.ladokUploadedAt ? Date.parse(view.ladokUploadedAt) : NaN;
+  const uploadDate = Number.isFinite(uploadTime)
+    ? new Intl.DateTimeFormat(lang === "sv" ? "sv-SE" : "en-GB", {
+        dateStyle: "medium",
+        timeZone: "Europe/Stockholm",
+      }).format(uploadTime)
+    : null;
+
   const ladokUpdateCard = (
     <section className="rounded-2xl border border-primary/20 bg-primary-soft p-4 shadow-card sm:flex sm:items-center sm:justify-between sm:gap-5">
       <div className="flex items-start gap-3">
@@ -207,6 +215,9 @@ export function Dashboard({
           <h3 className="font-display text-base font-bold">{t.ladokUpdateTitle}</h3>
           <p className="mt-1 max-w-lg text-sm leading-snug text-muted-foreground">
             {t.ladokUpdateDescription}
+          </p>
+          <p className="mt-2 text-xs font-semibold text-muted-foreground">
+            {uploadDate ? t.ladokLastUploaded(uploadDate) : t.ladokNoUpload}
           </p>
         </div>
       </div>

@@ -76,6 +76,8 @@ export const ui = {
     ladokUpdateDescription:
       "Upload your transcript of records and certificate of registration from Ladok as PDFs to see your grades, GPA, and how many credits you have left.",
     ladokSignIn: "Sign in to import",
+    ladokLastUploaded: (date: string) => `Last uploaded ${date}`,
+    ladokNoUpload: "No Ladok documents uploaded yet",
     ectsProgress: "ECTS progress",
     ectsProgressDescription: "Earned credits compared with your expected study plan",
     earned: "Earned",
@@ -250,6 +252,8 @@ export const ui = {
     ladokUpdateDescription:
       "Ladda upp ditt resultatintyg och registreringsintyg från Ladok som PDF för att se dina betyg, ditt snittbetyg och hur många högskolepoäng du har kvar.",
     ladokSignIn: "Logga in för att importera",
+    ladokLastUploaded: (date: string) => `Senast uppladdat ${date}`,
+    ladokNoUpload: "Inga Ladok-intyg har laddats upp än",
     ectsProgress: "Poängutveckling",
     ectsProgressDescription: "Avklarade poäng jämfört med förväntad studieplan",
     earned: "Avklarat",

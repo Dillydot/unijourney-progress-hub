@@ -12,6 +12,7 @@ export type ProfileRow = {
   programme_start: string | null;
   programme_end: string | null;
   transcript_printed: string | null;
+  updated_at?: string;
 };
 
 export type CourseRow = {
@@ -237,6 +238,7 @@ export function buildStudentView(
     semesters: [...new Set(slots.map((s) => s.semester))],
     academicYears: [...new Set(slots.map((s) => s.academicYear))],
     transcriptPrinted: profile.transcript_printed,
+    ladokUploadedAt: profile.updated_at ?? null,
     programmeTerm: profile.programme_start ? termOf(profile.programme_start) : null,
     courseCodes: courses.flatMap((c) => (c.code ? [c.code] : [])),
   };
