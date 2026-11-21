@@ -182,17 +182,11 @@ export function Landing() {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
-                to="/demo"
+                to="/"
+                search={{ login: true }}
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3 font-semibold text-primary-foreground transition hover:bg-primary/90"
               >
                 Try the app {arrow}
-              </Link>
-              <Link
-                to="/"
-                search={{ login: true }}
-                className="inline-flex rounded-full border border-primary/25 bg-card px-7 py-3 font-semibold text-primary transition hover:border-primary/60 hover:bg-secondary"
-              >
-                Log in
               </Link>
             </div>
           </div>
@@ -291,12 +285,13 @@ export function Landing() {
           <div>
             <h3 className="text-2xl font-semibold">Want to click through it yourself?</h3>
             <p className="mt-2 max-w-xl text-muted-foreground">
-              Try the app with a sample student — tap through the dashboard, progress, plan,
-              calendar and news views.
+              Sign in, import your courses and tap through your own dashboard, progress, plan,
+              calendar and news.
             </p>
           </div>
           <Link
-            to="/demo"
+            to="/"
+            search={{ login: true }}
             className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-7 py-3 font-semibold text-primary-foreground transition hover:bg-primary/90"
           >
             Try the app {arrow}
