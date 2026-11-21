@@ -7,7 +7,7 @@ import { physicsDemoEvents, physicsDemoPlan, physicsDemoView } from "@/lib/physi
 import { CourseRow, ProfileRow, buildStudentView } from "@/lib/student-view";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Session } from "@supabase/supabase-js";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/")({
@@ -85,6 +85,7 @@ function AuthenticatedDashboard({ session, lang, setLang }: LanguageProps & { se
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reimport, setReimport] = useState(false);
   const [returnTab, setReturnTab] = useState<Tab>("dashboard");
+  const navigate = useNavigate();
 
   async function load() {
     setLoadError(null);
@@ -98,7 +99,13 @@ function AuthenticatedDashboard({ session, lang, setLang }: LanguageProps & { se
   }
 
   useEffect(() => {
-    void load();
+    // Admins land on /admin; everyone else (or a failed check) gets the app.
+    void supabase.rpc("is_admin").then(({ data: isAdmin }) => {
+      if (isAdmin) void navigate({ to: "/admin" });
+      else void load();
+    });
+    // Counts today as active for admin retention; failing is harmless. .then() sends the request.
+    void supabase.rpc("track_activity").then();
   }, []);
   if (loadError)
     return (
