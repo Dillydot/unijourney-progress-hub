@@ -164,6 +164,19 @@ async function pdfText(file: File) {
   return (await extractText(pdf, { mergePages: true })).text;
 }
 
+// Tells admins an import failed. Only the kind of failure is sent, never text from the PDF.
+function logFailure(
+  stage: "read" | "save",
+  code: string,
+  document: Kind | "other" | null,
+  detail: string,
+) {
+  void getSupabase()
+    .from("import_failures")
+    .insert({ stage, code, document, detail: detail.slice(0, 300) })
+    .then();
+}
+
 export function LadokImport({
   lang,
   defaultName,
@@ -204,6 +217,13 @@ export function LadokImport({
       const code = e instanceof LadokError ? e.code : "unreadable";
       // A Swedish PDF fails before we know which document it is.
       if (code === "wrong_document" || code === "swedish") kind = "other";
+      // LadokError messages are fixed strings; other errors (from the PDF reader) send only their name.
+      logFailure(
+        "read",
+        e instanceof LadokError && e.message === "no programme" ? "no_programme" : code,
+        kind,
+        e instanceof LadokError ? e.message : e instanceof Error ? e.name : "unknown",
+      );
       const message =
         code === "wrong_document"
           ? t.errors.other
@@ -247,6 +267,12 @@ export function LadokImport({
     if (error) {
       setSaving(false);
       setSaveError(error.message);
+      logFailure(
+        "save",
+        error.code ? "save_" + error.code.toLowerCase() : "save_error",
+        null,
+        error.message,
+      );
     } else onDone();
   }
 

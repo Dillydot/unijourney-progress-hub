@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { feedbackCategories, type FeedbackCategory } from "@/components/FeedbackDialog";
+import { feedbackCategories, type FeedbackCategory } from "@/lib/feedback";
 import { ui } from "@/lib/copy";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Session } from "@supabase/supabase-js";
@@ -38,6 +38,33 @@ type Metrics = {
   feedback_by_category: Partial<Record<FeedbackCategory, number>>;
   top_programmes: { code: string; name: string | null; students: number }[];
 };
+
+// Shape returned by admin_import_failures().
+type ImportFailures = {
+  failures_7d: number;
+  users_failed: number;
+  users_stuck: number;
+  by_code: Record<string, number>;
+  recent: {
+    created_at: string;
+    stage: "read" | "save";
+    code: string;
+    document: string | null;
+    detail: string | null;
+    fixed_later: boolean;
+  }[];
+};
+
+// What each failure code means, in the words a student saw (or close to them).
+const failureLabels: Record<string, string> = {
+  swedish: "PDF in Swedish",
+  wrong_document: "Not a Ladok transcript / registration",
+  missing_codes: "Course codes missing",
+  no_programme: "No programme on registration",
+  unreadable: "PDF could not be read",
+};
+const failureLabel = (code: string) =>
+  failureLabels[code] ?? (code.startsWith("save_") ? `Saving failed (${code.slice(5)})` : code);
 
 type Feedback = {
   id: number;
@@ -92,6 +119,7 @@ function Admin() {
 function AdminData() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const [failures, setFailures] = useState<ImportFailures | null>(null);
   const [filter, setFilter] = useState<FeedbackCategory | "all">("all");
   const [hideResolved, setHideResolved] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,11 +134,13 @@ function AdminData() {
         .order("created_at", { ascending: false })
         .limit(500)
         .returns<Feedback[]>(),
-    ]).then(([m, f]) => {
-      const failed = m.error ?? f.error;
+      supabase.rpc("admin_import_failures"),
+    ]).then(([m, f, i]) => {
+      const failed = m.error ?? f.error ?? i.error;
       if (failed) return setError(failed.message);
       setMetrics(m.data as Metrics);
       setFeedback(f.data ?? []);
+      setFailures(i.data as ImportFailures);
     });
   }, []);
 
@@ -122,7 +152,7 @@ function AdminData() {
         </p>
       </Shell>
     );
-  if (!metrics) return <Shell>Loading…</Shell>;
+  if (!metrics || !failures) return <Shell>Loading…</Shell>;
 
   async function setStatus(id: number, status: FeedbackStatus) {
     const before = feedback;
@@ -196,6 +226,58 @@ function AdminData() {
       <section className="mt-6 grid gap-3 md:grid-cols-2">
         <WeeklyChart title="Sign-ups per week" rows={weeks} dataKey="signups" />
         <WeeklyChart title="Active users per week" rows={weeks} dataKey="active" />
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card">
+        <h2 className="section-label mb-3">Ladok import problems</h2>
+        <dl className="grid grid-cols-3 gap-3">
+          <div>
+            <dt className="text-xs font-semibold text-muted-foreground">Failures this week</dt>
+            <dd className="mt-1 font-display text-2xl font-bold">{failures.failures_7d}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-muted-foreground">Students who hit one</dt>
+            <dd className="mt-1 font-display text-2xl font-bold">{failures.users_failed}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-muted-foreground">Still without data</dt>
+            <dd className="mt-1 font-display text-2xl font-bold">{failures.users_stuck}</dd>
+          </div>
+        </dl>
+        {Object.keys(failures.by_code).length > 0 && (
+          <ul className="mt-4 space-y-1.5 text-sm">
+            {Object.entries(failures.by_code)
+              .sort(([, a], [, b]) => b - a)
+              .map(([code, n]) => (
+                <li key={code} className="flex justify-between gap-3">
+                  <span>{failureLabel(code)}</span>
+                  <span className="font-semibold">{n}</span>
+                </li>
+              ))}
+          </ul>
+        )}
+        {failures.recent.length > 0 ? (
+          <details className="mt-4 text-sm">
+            <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
+              Latest {failures.recent.length}
+            </summary>
+            <ul className="mt-2 space-y-2">
+              {failures.recent.map((r, i) => (
+                <li key={i} className="rounded-xl bg-secondary px-3 py-2">
+                  <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+                    <span>{dateTime.format(new Date(r.created_at))}</span>
+                    {r.document && <span>· {r.document}</span>}
+                    <span>· {r.fixed_later ? "imported later" : "still without data"}</span>
+                  </div>
+                  <p className="font-semibold">{failureLabel(r.code)}</p>
+                  {r.detail && <p className="text-xs text-muted-foreground">{r.detail}</p>}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">No failed imports yet.</p>
+        )}
       </section>
 
       <section className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card">

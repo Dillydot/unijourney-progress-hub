@@ -10,11 +10,10 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Lang, ui } from "@/lib/copy";
+import { feedbackCategories, type FeedbackCategory } from "@/lib/feedback";
+import { sendFeedback } from "@/lib/feedback-api";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 
-// Must match the check constraint in the feedback migration.
-export const feedbackCategories = ["bug", "idea", "data", "design", "other"] as const;
-export type FeedbackCategory = (typeof feedbackCategories)[number];
 const MAX_LENGTH = 2000;
 
 export function FeedbackDialog({ lang, children }: { lang: Lang; children: React.ReactNode }) {
@@ -39,11 +38,12 @@ export function FeedbackDialog({ lang, children }: { lang: Lang; children: React
     if (!category || !message.trim()) return;
     setState("sending");
     setError(null);
-    const { error } = await getSupabase()
-      .from("feedback")
-      .insert({ category, message: message.trim() });
+    const { data: auth } = await getSupabase().auth.getSession();
+    const { error } = await sendFeedback({
+      data: { category, message: message.trim(), accessToken: auth.session?.access_token ?? null },
+    }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) }));
     if (error) {
-      setError(error.message);
+      setError(error);
       setState("idle");
     } else setState("sent");
   }
