@@ -21,6 +21,9 @@
 @theme inline {
   --font-sans: "Manrope", sans-serif;
   --font-display: "Manrope", sans-serif;
+  --font-serif: "Fraunces", serif;
+  --color-ink: oklch(0.52 0.19 258);
+  --color-ink-foreground: oklch(0.99 0 0);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -225,4 +228,27 @@
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .card-enter { animation: none; }
+  .float-slow { animation: none; }
+}
+
+/* Landing page (src/components/Landing.tsx) */
+.landing :where(h1, h2, h3) {
+  font-family: var(--font-serif);
+  letter-spacing: -0.02em;
+}
+
+@utility grid-paper {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 6%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@utility float-slow {
+  animation: floaty 6s ease-in-out infinite;
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-10px) rotate(-1deg); }
 }
