@@ -1,9 +1,9 @@
 import { AuthScreen } from "@/components/AuthScreen";
+import { Landing } from "@/components/Landing";
 import { LadokImport } from "@/components/LadokImport";
 import { Dashboard, type Tab } from "@/components/dashboard/Dashboard";
 import { Button } from "@/components/ui/button";
 import { Lang } from "@/lib/copy";
-import { physicsDemoEvents, physicsDemoPlan, physicsDemoView } from "@/lib/physics-demo";
 import { CourseRow, ProfileRow, buildStudentView } from "@/lib/student-view";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Session } from "@supabase/supabase-js";
@@ -15,17 +15,16 @@ export const Route = createFileRoute("/")({
     search["login"] === true ? { login: true } : {},
   head: () => ({
     meta: [
-      { title: "Student Dashboard — UniJourney" },
+      { title: "UniJourney — Your studies, organized" },
       {
         name: "description",
         content:
-          "Track academic progress, the next registration deadline, current courses, recent grades and notifications in one clean student dashboard.",
+          "UniJourney helps students organize their studies, never miss deadlines and track academic progress.",
       },
-      { property: "og:title", content: "Student Dashboard — UniJourney" },
+      { property: "og:title", content: "UniJourney — Your studies, organized" },
       {
         property: "og:description",
-        content:
-          "Progress, registration deadlines, current courses, grades and notifications — your university journey at a glance.",
+        content: "Organize courses, get deadline reminders and track your academic progress.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -59,25 +58,13 @@ function Index() {
     );
   }
   if (login) return <AuthScreen lang={lang} />;
-  return <DemoDashboard lang={lang} setLang={setLang} />;
+  return <Landing />;
 }
 
 type LanguageProps = {
   lang: Lang;
   setLang: React.Dispatch<React.SetStateAction<Lang>>;
 };
-
-function DemoDashboard({ lang, setLang }: LanguageProps) {
-  return (
-    <Dashboard
-      view={physicsDemoView}
-      lang={lang}
-      setLang={setLang}
-      demoPlan={physicsDemoPlan}
-      demoEvents={physicsDemoEvents}
-    />
-  );
-}
 
 function AuthenticatedDashboard({ session, lang, setLang }: LanguageProps & { session: Session }) {
   const supabase = getSupabase();
