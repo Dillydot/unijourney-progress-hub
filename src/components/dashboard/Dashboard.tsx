@@ -38,6 +38,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Lang, ui } from "@/lib/copy";
 import { Grade, StudentView, averageGrade } from "@/lib/student-view";
 import {
+  ArrowLeft,
   Award,
   Bell,
   BellRing,
@@ -236,17 +237,28 @@ export function Dashboard({
     >
       <header className="sticky top-0 z-30 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:px-5 md:px-8 md:py-5">
-          <button
-            type="button"
-            onClick={() => go("dashboard")}
-            className="flex min-h-11 min-w-0 items-center gap-2 sm:gap-3"
-            aria-label="UniJourney home"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-brand sm:size-10">
-              <GraduationCap className="size-5" aria-hidden="true" />
-            </span>
-            <span className="truncate font-display text-base font-bold sm:text-xl">UniJourney</span>
-          </button>
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+            {demo && (
+              <Link
+                to="/"
+                aria-label={lang === "sv" ? "Tillbaka till startsidan" : "Back to home page"}
+                className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-card text-muted-foreground shadow-card transition-colors hover:bg-secondary hover:text-primary md:size-10"
+              >
+                <ArrowLeft className="size-5" aria-hidden="true" />
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => go("dashboard")}
+              className="flex min-h-11 min-w-0 items-center gap-2 sm:gap-3"
+              aria-label="UniJourney home"
+            >
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-brand sm:size-10">
+                <GraduationCap className="size-5" aria-hidden="true" />
+              </span>
+              <span className="truncate font-display text-base font-bold sm:text-xl">UniJourney</span>
+            </button>
+          </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             <div className="hidden items-center gap-2 rounded-full bg-success-soft px-3 py-1.5 text-xs font-bold text-success md:flex">
               <span className="size-1.5 rounded-full bg-success" />
