@@ -1,12 +1,17 @@
 -- In-app feedback, readable only by admins, plus the numbers for the admin page.
 
--- Admins are added by hand in the SQL editor:
---   insert into public.admins (user_id) select id from auth.users where email = '...';
+-- Admins by email, so they count even before their first sign-in. The email
+-- comes from auth.users, which sign-in links have verified.
 create table public.admins (
-  user_id uuid primary key references auth.users on delete cascade
+  email text primary key check (email = lower(email))
 );
 alter table public.admins enable row level security;
 revoke all on public.admins from anon, authenticated;
+
+insert into public.admins (email) values
+  ('angelosz@kth.se'),
+  ('damdam@kth.se'),
+  ('mwillems@kth.se');
 
 create function public.is_admin()
 returns boolean
@@ -15,7 +20,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select exists (select 1 from public.admins where user_id = (select auth.uid()));
+  select exists (
+    select 1 from public.admins a
+    join auth.users u on lower(u.email) = a.email
+    where u.id = (select auth.uid())
+  );
 $$;
 revoke execute on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
