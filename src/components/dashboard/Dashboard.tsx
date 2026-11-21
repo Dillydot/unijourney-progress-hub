@@ -1,4 +1,5 @@
 import { ThemeSwitch } from "@/components/ThemeSwitch";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { CalendarScreen, type CalendarEvent } from "@/components/CalendarScreen";
 import {
   NewsScreen,
@@ -267,6 +268,15 @@ export function Dashboard({
                 </span>
               )}
             </button>
+            <FeedbackDialog lang={lang}>
+              <button
+                type="button"
+                aria-label={t.feedbackAction}
+                className="grid size-11 place-items-center rounded-xl border border-border bg-card text-muted-foreground shadow-card transition-colors hover:bg-secondary hover:text-primary md:size-10"
+              >
+                <MessageSquare className="size-5" aria-hidden="true" />
+              </button>
+            </FeedbackDialog>
             {demo && (
               <Button asChild className="h-11 shrink-0 rounded-xl px-2.5 sm:px-4 md:h-10">
                 <Link to="/" search={{ login: true }}>
@@ -879,16 +889,11 @@ export function Dashboard({
                   </p>
                 </div>
               </div>
-              <Button asChild variant="outline" className="min-h-11 shrink-0 rounded-xl">
-                <a
-                  href="https://github.com/Dillydot/unijourney-progress-hub/issues/new"
-                  target="_blank"
-                  rel="noreferrer"
-                >
+              <FeedbackDialog lang={lang}>
+                <Button type="button" variant="outline" className="min-h-11 shrink-0 rounded-xl">
                   {t.feedbackAction}
-                  <ExternalLink className="size-3.5" aria-hidden="true" />
-                </a>
-              </Button>
+                </Button>
+              </FeedbackDialog>
             </section>
           </section>
         )}
