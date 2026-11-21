@@ -45,7 +45,7 @@ async function notifyTeam(category: FeedbackCategory, message: string, signedIn:
         to,
         subject: `New feedback: ${category}`,
         // Plain text: the message is user input and must not become HTML.
-        text: `${message}\n\nCategory: ${category}\nFrom: ${signedIn ? "a signed-in student" : "a demo visitor"}\n\nAll feedback: https://unijourney.vercel.app/admin`,
+        text: `${message}\n\nCategory: ${category}\nFrom: ${signedIn ? "a signed-in student" : "a demo visitor"}\n\nAll feedback: https://unijourney.app/admin`,
       }),
       signal: AbortSignal.timeout(10_000),
     });
