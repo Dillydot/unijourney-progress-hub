@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import {
+  ArrowLeft,
   CheckCircle2,
   ExternalLink,
   FileText,
@@ -79,7 +80,7 @@ const copy = {
     name: "Your name (shown on your profile)",
     save: "Save to UniJourney",
     saving: "Saving…",
-    cancel: "Cancel",
+    back: "Back",
     ok: (n: number, hp: number) => `${n} courses · ${hp} hp`,
     summary: (programme: string, hp: number, total: number) => `${programme}: ${hp} of ${total} hp`,
     errors: {
@@ -144,7 +145,7 @@ const copy = {
     name: "Ditt namn (visas på din profil)",
     save: "Spara i UniJourney",
     saving: "Sparar…",
-    cancel: "Avbryt",
+    back: "Tillbaka",
     ok: (n: number, hp: number) => `${n} kurser · ${hp} hp`,
     summary: (programme: string, hp: number, total: number) => `${programme}: ${hp} av ${total} hp`,
     errors: {
@@ -186,7 +187,7 @@ export function LadokImport({
   lang: Lang;
   defaultName: string;
   onDone: () => void;
-  onCancel?: (() => void) | undefined;
+  onCancel: () => void;
 }) {
   const t = copy[lang];
   const [transcript, setTranscript] = useState<Transcript | null>(null);
@@ -333,6 +334,10 @@ export function LadokImport({
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-5">
+      <Button type="button" variant="ghost" className="-ml-3 min-h-11" onClick={onCancel}>
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        {t.back}
+      </Button>
       <h1 className="font-display text-2xl font-bold">{t.title}</h1>
       <p className="flex items-start gap-2 text-sm text-muted-foreground">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
@@ -422,12 +427,6 @@ export function LadokImport({
             {saving ? t.saving : t.save}
           </Button>
         </section>
-      )}
-
-      {onCancel && (
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          {t.cancel}
-        </Button>
       )}
     </main>
   );

@@ -119,7 +119,8 @@ function AuthenticatedDashboard({ session, lang, setLang }: LanguageProps & { se
         onDone={() => {
           void load().finally(() => setReimport(false));
         }}
-        onCancel={data ? () => setReimport(false) : undefined}
+        // New users have nowhere to go back to in the app, so Back signs them out to the landing page.
+        onCancel={data ? () => setReimport(false) : () => void supabase.auth.signOut()}
       />
     );
 
