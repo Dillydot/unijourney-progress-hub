@@ -6,6 +6,7 @@ import { ui } from "@/lib/copy";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Session } from "@supabase/supabase-js";
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/admin")({
@@ -73,10 +74,10 @@ function Admin() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  if (session === undefined) return <Shell>Loading…</Shell>;
+  if (session === undefined) return <Shell signedIn={false}>Loading…</Shell>;
   if (!session)
     return (
-      <Shell>
+      <Shell signedIn={false}>
         <p className="mb-4">Sign in with an admin account to see this page.</p>
         <Button asChild className="rounded-xl">
           <Link to="/" search={{ login: true }}>
@@ -373,14 +374,22 @@ function Tile({ label, value, sub }: { label: string; value: number; sub: string
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, signedIn = true }: { children: React.ReactNode; signedIn?: boolean }) {
   return (
     <main className="mx-auto min-h-dvh max-w-5xl px-4 py-8 text-foreground">
       <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold">UniJourney admin</h1>
-        <Link to="/" className="text-sm font-semibold text-primary">
-          Back to app
-        </Link>
+        {signedIn && (
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2 rounded-xl"
+            onClick={() => void getSupabase().auth.signOut()}
+          >
+            <LogOut className="size-4" aria-hidden="true" />
+            Log out
+          </Button>
+        )}
       </div>
       {children}
     </main>
