@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, CalendarDays, ChartNoAxesCombined, Map } from "lucide-react";
 import { useEffect, useState } from "react";
 
 // Images live in public/landing/.
@@ -25,34 +25,22 @@ const setupSteps = [
 
 const features = [
   {
-    n: "01",
-    t: "A clear path to your degree",
-    d: "See your programme structure at a glance — mandatory and elective courses by year and semester — and organize your studies with a plan that shows exactly what's next.",
-    bullets: [
-      "Programme structure laid out by year and semester",
-      "Mandatory and elective courses, ECTS and study periods",
-      "Your own plan, from first course to graduation",
-    ],
+    icon: Map,
+    title: "A clear path to your degree",
+    description:
+      "Browse your programme by year, semester and study period. See required and elective courses and how many ECTS each is worth.",
   },
   {
-    n: "02",
-    t: "Never miss a deadline",
-    d: "Smart push notifications tell you what needs you now, and everything lands on one friendly calendar you can actually read.",
-    bullets: [
-      "Exams, course registrations and course applications",
-      "University news and events, new grades, seminars and lectures",
-      "All of it on a user-friendly calendar, with reminders",
-    ],
+    icon: CalendarDays,
+    title: "Stay on top of deadlines",
+    description:
+      "See lectures, seminars, exams, application and registration dates in one calendar. Get updates on grades and university news.",
   },
   {
-    n: "03",
-    t: "Track your academic progress",
-    d: "Visual graphs and pie charts turn your record into something you can read in seconds — credits earned, courses passed, what still needs another try.",
-    bullets: [
-      "Credits per semester against your expected plan",
-      "Passed and failed courses, counted and colour-coded",
-      "Graphs and pie charts, from study period to full degree",
-    ],
+    icon: ChartNoAxesCombined,
+    title: "Track your academic progress",
+    description:
+      "See passed and failed courses at a glance. Compare the credits you’ve earned each semester with your study plan.",
   },
 ];
 
@@ -275,43 +263,32 @@ export function Landing() {
         </div>
       </section>
 
-      <section id="features" className="mx-auto max-w-6xl px-6 py-24">
-        <h2 className="max-w-xl text-4xl font-semibold md:text-5xl">What UniJourney gives you.</h2>
-        <p className="mt-4 max-w-xl text-lg text-muted-foreground">
-          Three things every student needs: know where you're going, never miss what's due, and see
-          how far you've come.
-        </p>
-        <div className="mt-14 grid gap-6 md:grid-cols-3">
-          {features.map((f) => (
-            <div
-              key={f.n}
-              className="flex flex-col rounded-2xl border bg-card p-8 transition hover:-translate-y-1 hover:shadow-lg"
+      <section
+        id="features"
+        aria-labelledby="features-title"
+        className="mx-auto max-w-6xl px-6 py-14 md:py-24"
+      >
+        <h2 id="features-title" className="max-w-xl text-3xl font-semibold md:text-5xl">
+          What UniJourney gives you
+        </h2>
+        <ul className="mt-6 grid gap-3 md:mt-10 md:grid-cols-3 md:gap-6">
+          {features.map(({ icon: Icon, title, description }) => (
+            <li
+              key={title}
+              className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-2xl border border-border bg-card p-4 md:flex md:flex-col md:gap-4 md:p-6"
             >
-              <span className="font-serif text-4xl text-primary">{f.n}</span>
-              <h3 className="mt-6 text-2xl font-semibold">{f.t}</h3>
-              <p className="mt-3 text-muted-foreground">{f.d}</p>
-              <ul className="mt-6 space-y-3 border-t pt-6">
-                {f.bullets.map((b) => (
-                  <li key={b} className="flex items-start gap-3 text-sm">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                      className="mt-0.5 h-4 w-4 shrink-0 text-primary"
-                    >
-                      <path d="m5 12 5 5L20 7" />
-                    </svg>
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+              <span className="grid size-9 place-items-center rounded-lg bg-primary-soft text-primary md:size-11">
+                <Icon aria-hidden="true" className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-lg leading-tight font-semibold md:text-xl">{title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  {description}
+                </p>
+              </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
 
       <section id="screens" className="mx-auto max-w-6xl px-6 py-24">
