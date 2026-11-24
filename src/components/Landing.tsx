@@ -56,7 +56,7 @@ const screens = [
   {
     src: img("calendar.png"),
     t: "Calendar",
-    d: "Lectures, seminars, exams and registrations on a clear monthly view — with reminders and map links to rooms.",
+    d: "See lectures, seminars, exams and registrations in weekly and monthly views. Open an event for details and map links.",
   },
   {
     src: img("news.png"),
