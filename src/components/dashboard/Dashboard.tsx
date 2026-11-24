@@ -232,10 +232,10 @@ export function Dashboard({
 
   return (
     <div
-      className="min-h-dvh bg-background text-foreground"
+      className={`bg-background text-foreground ${tab === "calendar" ? "flex h-dvh flex-col" : "min-h-dvh"}`}
       style={{ "--progress": `${progress.progressPercent}%` } as React.CSSProperties}
     >
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:px-5 md:px-8 md:py-5">
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
             {demo && (
@@ -256,7 +256,9 @@ export function Dashboard({
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-brand sm:size-10">
                 <GraduationCap className="size-5" aria-hidden="true" />
               </span>
-              <span className="truncate font-display text-base font-bold sm:text-xl">UniJourney</span>
+              <span className="truncate font-display text-base font-bold sm:text-xl">
+                UniJourney
+              </span>
             </button>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
@@ -354,7 +356,13 @@ export function Dashboard({
         )}
       </header>
 
-      <main className="mx-auto min-w-0 max-w-6xl px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 md:px-8 md:pt-8">
+      <main
+        className={`mx-auto min-w-0 max-w-6xl px-3 sm:px-5 md:px-8 ${
+          tab === "calendar"
+            ? "w-full min-h-0 flex-1 py-2"
+            : "pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 md:pt-8"
+        }`}
+      >
         {tab === "dashboard" && (
           <div className="mb-3 md:mb-5">
             <p className="text-xs font-bold text-primary">{t.academicYear}</p>
@@ -650,7 +658,7 @@ export function Dashboard({
           />
         )}
 
-        <div hidden={tab !== "calendar"}>
+        <div hidden={tab !== "calendar"} className="h-full">
           <CalendarScreen lang={lang} events={calendarEvents} />
         </div>
 
@@ -912,7 +920,7 @@ export function Dashboard({
       </main>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur sm:px-3"
+        className={`z-20 shrink-0 border-t border-border bg-background/95 pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur sm:px-3 ${tab === "calendar" ? "" : "fixed inset-x-0 bottom-0"}`}
         aria-label="Main navigation"
       >
         <div className="mx-auto grid max-w-xl grid-cols-6">

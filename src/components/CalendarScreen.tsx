@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, Link2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,9 +33,6 @@ export type CalendarEvent = {
 const copy = {
   en: {
     title: "Calendar",
-    intro:
-      "Course dates, exam periods and registration deadlines from kth.se. Open a course for its full schedule in TimeEdit.",
-    example: "From kth.se",
     connect: "Connect your schedule",
     connectDescription: "Add your personal KTH schedule to the UniJourney calendar.",
     openSettingsStep: "Open your KTH calendar settings",
@@ -77,9 +74,6 @@ const copy = {
   },
   sv: {
     title: "Kalender",
-    intro:
-      "Kursdatum, tentaperioder och anmälningsdatum från kth.se. Öppna en kurs för hela schemat i TimeEdit.",
-    example: "Från kth.se",
     connect: "Anslut ditt schema",
     connectDescription: "Lägg till ditt personliga KTH-schema i UniJourneys kalender.",
     openSettingsStep: "Öppna dina kalenderinställningar på KTH",
@@ -209,18 +203,9 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
   }
 
   return (
-    <section id="calendar" className="space-y-3">
-      <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-extrabold tracking-tight text-foreground">{c.title}</h1>
-          <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-            {c.example}
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">{c.intro}</p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
+    <section id="calendar" className="flex h-full min-h-0 flex-col gap-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <h1 className="mr-auto text-lg font-extrabold tracking-tight text-foreground">{c.title}</h1>
         <Dialog
           open={connectOpen}
           onOpenChange={(open) => {
@@ -375,7 +360,7 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
         </p>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5">
         <div
           role="group"
           aria-label={c.title}
@@ -387,7 +372,7 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
               size="sm"
               variant={view === v ? "default" : "ghost"}
               aria-pressed={view === v}
-              className="h-10 rounded-full px-3 sm:px-4"
+              className="h-8 rounded-full px-3 sm:px-4"
               onClick={() => setView(v)}
             >
               {c[v]}
@@ -398,7 +383,7 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
           <Button
             size="sm"
             variant="outline"
-            className="h-10 rounded-full"
+            className="h-8 rounded-full"
             onClick={() => {
               setCursor(new Date());
             }}
@@ -408,7 +393,7 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+      <div className="flex shrink-0 flex-wrap gap-x-2.5 gap-y-0.5 [@media(max-height:480px)]:hidden">
         {(Object.keys(kindStyle) as CalendarKind[]).map((k) => (
           <span
             key={k}
@@ -422,17 +407,17 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
 
       <div
         className={cn(
-          "rounded-2xl border border-border bg-card shadow-sm",
-          view === "week" ? "p-2 sm:p-3" : "overflow-hidden",
+          "flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm",
+          view === "week" && "p-1",
         )}
       >
         {view === "week" ? (
           <>
-            <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="flex shrink-0 items-center justify-between gap-1">
               <Button
                 size="icon"
                 variant="ghost"
-                className="size-11 rounded-full sm:size-9"
+                className="size-8 rounded-full"
                 aria-label={c.prev}
                 onClick={() => shift(-1)}
               >
@@ -442,7 +427,7 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
               <Button
                 size="icon"
                 variant="ghost"
-                className="size-11 rounded-full sm:size-9"
+                className="size-8 rounded-full"
                 aria-label={c.next}
                 onClick={() => shift(1)}
               >
@@ -452,12 +437,10 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
 
             <WeekTimeline
               days={weekDays}
-              selectedKey={toKey(cursor)}
               todayKey={todayKey}
               byDay={byDay}
               c={c}
-              onSelectDay={setCursor}
-              onOpenEvent={(event, trigger) => openDay(trigger, event.date, event.id)}
+              onOpenDay={openDay}
             />
           </>
         ) : (
@@ -522,26 +505,23 @@ function MonthTimeline({
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const weekdays = useRef<HTMLDivElement>(null);
-  const initialDay = useRef<HTMLLIElement>(null);
-  const prepend = useRef<{ month: HTMLElement; offset: number }>(null);
+  const initialMonth = useRef<HTMLElement>(null);
+  const prepend = useRef<{ month: HTMLElement; offset: number; top: number }>(null);
   const [{ first, last }, setRange] = useState({ first: -2, last: 2 });
 
   useLayoutEffect(() => {
     const scroller = viewport.current;
-    const day = initialDay.current;
-    const monthHeading = day?.closest("section")?.querySelector("h2");
-    if (scroller && day && monthHeading && weekdays.current) {
-      scroller.scrollTop =
-        day.offsetTop - monthHeading.offsetHeight - weekdays.current.offsetHeight;
+    if (scroller && initialMonth.current && weekdays.current) {
+      scroller.scrollTop = initialMonth.current.offsetTop - weekdays.current.offsetHeight;
     }
   }, []);
 
   useLayoutEffect(() => {
     const scroller = viewport.current;
     if (scroller && prepend.current) {
-      const { month, offset } = prepend.current;
+      const { month, offset, top } = prepend.current;
       prepend.current = null;
-      scroller.scrollTop += month.offsetTop - offset;
+      scroller.scrollTop = top + month.offsetTop - offset;
     }
   }, [first]);
 
@@ -549,10 +529,19 @@ function MonthTimeline({
     const { scrollTop, scrollHeight, clientHeight } = scroller;
     const firstMonth = scroller.querySelector("section");
     if (scrollTop < clientHeight && !prepend.current && firstMonth) {
-      prepend.current = { month: firstMonth, offset: firstMonth.offsetTop };
+      prepend.current = { month: firstMonth, offset: firstMonth.offsetTop, top: scrollTop };
       setRange((range) => ({ ...range, first: range.first - 3 }));
     } else if (scrollHeight - scrollTop - clientHeight < clientHeight) {
       setRange((range) => ({ ...range, last: Math.max(range.last, last + 3) }));
+    }
+  }
+
+  function scrollToMonth(trigger: HTMLButtonElement, direction: number) {
+    const section = trigger.closest("section");
+    const target = direction < 0 ? section?.previousElementSibling : section?.nextElementSibling;
+    if (target instanceof HTMLElement && target.tagName === "SECTION" && weekdays.current) {
+      viewport.current?.scrollTo({ top: target.offsetTop - weekdays.current.offsetHeight });
+      target.querySelectorAll("button")[direction < 0 ? 0 : 1]?.focus({ preventScroll: true });
     }
   }
 
@@ -563,11 +552,11 @@ function MonthTimeline({
       aria-label={c.month}
       tabIndex={0}
       onScroll={(event) => extendRange(event.currentTarget)}
-      className="relative max-h-[65dvh] overflow-y-auto [overflow-anchor:none] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+      className="relative min-h-0 flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain scroll-pt-6 [overflow-anchor:none] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
     >
       <div
         ref={weekdays}
-        className="sticky top-0 z-20 grid h-8 grid-cols-7 items-center border-b border-border bg-card text-center text-[10px] font-bold uppercase text-muted-foreground sm:text-xs"
+        className="sticky top-0 z-20 grid h-6 grid-cols-7 items-center border-b border-border bg-card text-center text-[10px] font-bold uppercase text-muted-foreground sm:text-xs"
       >
         {c.days.map((day) => (
           <span key={day}>
@@ -586,28 +575,49 @@ function MonthTimeline({
         const monthDays = Array.from({ length: monthLength }, (_, day) => addDays(month, day));
 
         return (
-          <section key={offset}>
-            <h2 className="sticky top-8 z-10 border-b border-border bg-card px-3 py-2 text-base font-bold capitalize">
-              {month.toLocaleDateString(c.locale, { month: "long", year: "numeric" })}
-            </h2>
-            <ol className="grid grid-cols-7">
+          <section
+            key={offset}
+            ref={offset === 0 ? initialMonth : undefined}
+            className="flex h-[calc(100%-1.5rem)] snap-start flex-col"
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-border">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8"
+                aria-label={c.prev}
+                onClick={(event) => scrollToMonth(event.currentTarget, -1)}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <h2 className="text-sm font-bold capitalize">
+                {month.toLocaleDateString(c.locale, { month: "long", year: "numeric" })}
+              </h2>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8"
+                aria-label={c.next}
+                onClick={(event) => scrollToMonth(event.currentTarget, 1)}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+            <ol className="grid min-h-0 flex-1 auto-rows-fr grid-cols-7">
               {monthDays.map((date, index) => {
                 const key = toKey(date);
                 const events = byDay[key] ?? [];
-                const extraCount = events.length - 3;
+                const extraCount = events.length - 1;
                 return (
                   <li
                     key={key}
-                    ref={
-                      offset === 0 && date.getDate() === cursor.getDate() ? initialDay : undefined
-                    }
                     style={index === 0 ? { gridColumnStart: leadingDays + 1 } : undefined}
-                    className="min-h-26 min-w-0 border-t border-border px-0.5 py-1.5 sm:min-h-28 sm:px-1.5 sm:py-2"
+                    className="@container-size min-h-0 min-w-0 overflow-hidden border-t border-border px-0.5 sm:px-1"
                   >
                     <time
                       dateTime={key}
                       aria-current={key === todayKey ? "date" : undefined}
-                      className="mb-1.5 flex justify-center"
+                      className="flex justify-center"
                     >
                       <span className="sr-only">
                         {date.toLocaleDateString(c.locale, {
@@ -619,7 +629,7 @@ function MonthTimeline({
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "grid size-6 place-items-center rounded-full text-sm font-bold sm:size-8 sm:text-base",
+                          "relative grid size-5 place-items-center rounded-full text-xs font-bold enabled:hover:bg-secondary enabled:focus-visible:outline-2 enabled:focus-visible:outline-ring sm:size-6 sm:text-sm",
                           key === todayKey
                             ? "bg-primary text-primary-foreground"
                             : (date.getDay() === 0 || date.getDay() === 6) &&
@@ -629,15 +639,15 @@ function MonthTimeline({
                         {date.getDate()}
                       </span>
                     </time>
-                    <div className="space-y-0.5">
-                      {events.slice(0, 3).map((event) => (
+                    <div className="[@container_(max-height:3.5rem)]:hidden">
+                      {events.slice(0, 1).map((event) => (
                         <button
                           key={event.id}
                           type="button"
                           title={event.title}
                           onClick={(click) => onOpenDay(click.currentTarget, key, event.id)}
                           className={cn(
-                            "block min-h-6 w-full touch-manipulation truncate rounded-sm px-0.5 py-0.5 text-left text-[10px] font-semibold leading-tight hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ring sm:rounded-md sm:px-1.5 sm:text-xs",
+                            "block min-h-4 w-full touch-manipulation truncate rounded-sm px-0.5 py-0.5 text-left text-[10px] font-semibold leading-tight hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ring sm:rounded-md sm:px-1.5 sm:text-xs",
                             event.kind
                               ? kindStyle[event.kind].chip
                               : "bg-secondary text-foreground",
@@ -654,7 +664,7 @@ function MonthTimeline({
                           type="button"
                           aria-label={c.moreEvents(extraCount)}
                           onClick={(click) => onOpenDay(click.currentTarget, key)}
-                          className="block min-h-6 w-full touch-manipulation rounded-sm text-center text-[10px] font-semibold text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring sm:text-xs"
+                          className="block min-h-4 w-full touch-manipulation rounded-sm text-center text-[10px] font-semibold text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring sm:text-xs"
                         >
                           +{extraCount}
                         </button>
@@ -709,22 +719,17 @@ function positionEvents(events: CalendarEvent[]) {
 
 function WeekTimeline({
   days,
-  selectedKey,
   todayKey,
   byDay,
   c,
-  onSelectDay,
-  onOpenEvent,
+  onOpenDay,
 }: {
   days: Date[];
-  selectedKey: string;
   todayKey: string;
   byDay: Record<string, CalendarEvent[]>;
   c: (typeof copy)[Lang];
-  onSelectDay: (day: Date) => void;
-  onOpenEvent: (event: CalendarEvent, trigger: HTMLButtonElement) => void;
+  onOpenDay: (trigger: HTMLButtonElement, date: string, eventId?: string) => void;
 }) {
-  const viewport = useRef<HTMLDivElement>(null);
   const columns = days.map((date) => {
     const key = toKey(date);
     const events = byDay[key] ?? [];
@@ -742,143 +747,113 @@ function WeekTimeline({
   const duration = hours.length * 60;
   const showAllDay = columns.some((column) => column.allDay.length > 0);
 
-  useEffect(() => {
-    const scroller = viewport.current;
-    const first = scroller?.querySelector<HTMLElement>("[data-day]");
-    const selected = scroller?.querySelector<HTMLElement>(`[data-day="${selectedKey}"]`);
-    if (scroller && first && selected) {
-      scroller.scrollLeft = selected.offsetLeft - first.offsetLeft;
-    }
-  }, [selectedKey]);
+  const hourRows = { gridTemplateRows: `repeat(${hours.length}, minmax(0, 1fr))` };
 
   return (
-    <div className="@container">
-      <div className="mb-2 grid grid-cols-7 gap-0.5">
-        {columns.map(({ date, key }, index) => (
+    <div
+      role="region"
+      aria-label={c.week}
+      className="grid min-h-0 flex-1 grid-cols-[1.75rem_repeat(7,minmax(0,1fr))] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-border sm:grid-cols-[2.75rem_repeat(7,minmax(0,1fr))]"
+    >
+      <div className="flex items-end justify-end border-b border-border px-0.5 text-right text-[8px] leading-tight text-muted-foreground sm:text-[10px]">
+        {showAllDay && c.allDay}
+      </div>
+      {columns.map(({ date, key, allDay }, index) => (
+        <div key={key} className="min-w-0 border-b border-l border-border">
           <button
-            key={key}
             type="button"
+            disabled={!byDay[key]?.length}
             aria-current={key === todayKey ? "date" : undefined}
-            aria-pressed={key === selectedKey}
-            onClick={() => onSelectDay(date)}
+            aria-label={date.toLocaleDateString(c.locale, {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+            onClick={(event) => onOpenDay(event.currentTarget, key)}
             className={cn(
-              "flex min-w-0 flex-col items-center rounded-lg py-1 text-xs focus-visible:outline-2 focus-visible:outline-ring",
-              key === selectedKey ? "bg-secondary" : "hover:bg-secondary/50",
+              "flex min-h-7 w-full items-center justify-center gap-0.5 px-0.5 text-[10px] font-bold enabled:hover:bg-secondary enabled:focus-visible:outline-2 enabled:focus-visible:-outline-offset-2 enabled:focus-visible:outline-ring sm:gap-1 sm:text-xs",
+              key === todayKey && "bg-primary-soft text-primary",
             )}
           >
-            <span className="text-muted-foreground">{c.days[index]}</span>
-            <span
-              className={cn(
-                "grid size-6 place-items-center rounded-full text-sm font-bold",
-                key === todayKey && "bg-primary text-primary-foreground",
-              )}
-            >
-              {date.getDate()}
-            </span>
+            <span className="sm:hidden">{c.days[index]?.slice(0, 1)}</span>
+            <span className="hidden sm:inline">{c.days[index]}</span>
+            {date.getDate()}
+            {!!byDay[key]?.length && (
+              <span aria-hidden="true" className="size-1 shrink-0 rounded-full bg-current" />
+            )}
           </button>
+          {allDay.slice(0, 1).map((event) => (
+            <button
+              key={event.id}
+              type="button"
+              onClick={(click) =>
+                onOpenDay(click.currentTarget, key, allDay.length === 1 ? event.id : undefined)
+              }
+              className={cn(
+                "block h-4 w-full truncate border-t border-border px-0.5 text-left text-[9px] font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring sm:text-xs",
+                event.kind ? kindStyle[event.kind].chip : "bg-secondary text-foreground",
+              )}
+              title={allDay.length > 1 ? c.moreEvents(allDay.length) : event.title}
+            >
+              {allDay.length > 1 ? `+${allDay.length}` : event.title}
+            </button>
+          ))}
+        </div>
+      ))}
+      <div className="grid bg-card" style={hourRows}>
+        {hours.map((hour, index) => (
+          <div
+            key={hour}
+            className="overflow-hidden border-b border-border/60 pr-0.5 text-right text-[8px] leading-none text-muted-foreground tabular-nums sm:pr-1 sm:text-[10px]"
+          >
+            <span className={index % 2 === 0 ? undefined : "[@media(max-height:650px)]:hidden"}>
+              {pad(hour)}:00
+            </span>
+          </div>
         ))}
       </div>
-      <div
-        ref={viewport}
-        role="region"
-        aria-label={c.week}
-        tabIndex={0}
-        className="relative max-h-[65dvh] overflow-auto rounded-xl border border-border focus-visible:outline-2 focus-visible:outline-ring"
-      >
-        <div className="grid grid-cols-[3rem_repeat(7,minmax(0,1fr))] [--hour-height:3.5rem] w-[calc(350%-7.5rem)] @xl:w-[calc(175%-2.25rem)] @4xl:w-full">
-          <div className="sticky top-0 left-0 z-30 flex items-end justify-end border-b border-border bg-card px-1 pb-1 text-right text-[10px] text-muted-foreground">
-            {showAllDay && c.allDay}
-          </div>
-          {columns.map(({ date, key, allDay }) => (
-            <div
-              key={key}
-              data-day={key}
-              className="sticky top-0 z-20 min-w-0 border-b border-l border-border bg-card"
-            >
-              <time
-                dateTime={key}
-                className={cn(
-                  "flex min-h-9 items-center justify-center px-1 text-center text-xs font-bold capitalize",
-                  key === todayKey && "text-primary",
-                )}
-              >
-                {date.toLocaleDateString(c.locale, { weekday: "short", day: "numeric" })}
-              </time>
-              {showAllDay && (
-                <div className="space-y-1 border-t border-border p-1">
-                  {allDay.map((event) => (
-                    <button
-                      key={event.id}
-                      type="button"
-                      onClick={(click) => onOpenEvent(event, click.currentTarget)}
-                      className={cn(
-                        "block min-h-7 w-full truncate rounded-md px-1.5 text-left text-xs font-semibold focus-visible:outline-2 focus-visible:outline-ring",
-                        event.kind ? kindStyle[event.kind].chip : "bg-secondary text-foreground",
-                      )}
-                      title={event.title}
-                    >
-                      {event.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          <div className="sticky left-0 z-10 bg-card">
+      {columns.map(({ key, timed }) => (
+        <div
+          key={key}
+          className={cn("relative border-l border-border", key === todayKey && "bg-primary/5")}
+        >
+          <div aria-hidden="true" className="absolute inset-0 grid" style={hourRows}>
             {hours.map((hour) => (
-              <div
-                key={hour}
-                className="h-(--hour-height) border-b border-border/60 pr-1.5 pt-0.5 text-right text-[10px] text-muted-foreground tabular-nums"
-              >
-                {pad(hour)}:00
-              </div>
+              <div key={hour} className="border-b border-border/60" />
             ))}
           </div>
-          {columns.map(({ key, timed }) => (
+          {timed.map(({ event, start, end, lane, lanes }) => (
             <div
-              key={key}
-              className={cn("relative border-l border-border", key === todayKey && "bg-primary/5")}
+              key={event.id}
+              className="absolute px-0.5"
+              style={{
+                top: `${((start - startHour * 60) / duration) * 100}%`,
+                height: `${((end - start) / duration) * 100}%`,
+                left: `${(lane / lanes) * 100}%`,
+                width: `${100 / lanes}%`,
+              }}
             >
-              <div aria-hidden="true">
-                {hours.map((hour) => (
-                  <div key={hour} className="h-(--hour-height) border-b border-border/60" />
-                ))}
-              </div>
-              {timed.map(({ event, start, end, lane, lanes }) => (
-                <div
-                  key={event.id}
-                  className="absolute px-0.5"
-                  style={{
-                    top: `${((start - startHour * 60) / duration) * 100}%`,
-                    height: `${((end - start) / duration) * 100}%`,
-                    left: `${(lane / lanes) * 100}%`,
-                    width: `${100 / lanes}%`,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={(click) => onOpenEvent(event, click.currentTarget)}
-                    title={event.title}
-                    className={cn(
-                      "flex h-full w-full flex-col items-start overflow-hidden rounded-md border-l-2 px-1 text-left text-xs leading-tight font-semibold hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-                      event.kind ? kindStyle[event.kind].chip : "bg-secondary text-foreground",
-                      end - start >= 30 && "py-0.5",
-                    )}
-                  >
-                    <span className="line-clamp-2 wrap-anywhere">{event.title}</span>
-                    {end - start >= 60 && (
-                      <span className="max-w-full truncate text-[10px] font-medium">
-                        {event.start ?? "00:00"}
-                        {event.end && `–${event.end}`}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              ))}
+              <button
+                type="button"
+                onClick={(click) => onOpenDay(click.currentTarget, key, event.id)}
+                title={event.title}
+                className={cn(
+                  "flex h-full w-full flex-col items-start overflow-hidden rounded-sm border-l-2 px-0.5 text-left text-[9px] leading-none sm:px-1 sm:text-xs font-semibold hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+                  event.kind ? kindStyle[event.kind].chip : "bg-secondary text-foreground",
+                )}
+              >
+                <span className="w-full truncate">{event.title}</span>
+                {end - start >= 60 && (
+                  <span className="max-w-full truncate text-[10px] font-medium">
+                    {event.start ?? "00:00"}
+                    {event.end && `–${event.end}`}
+                  </span>
+                )}
+              </button>
             </div>
           ))}
         </div>
-      </div>
+      ))}
     </div>
   );
 }
