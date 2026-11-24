@@ -143,7 +143,15 @@ const isoWeek = (d: Date) => {
 const mapsUrl = (location: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${location}, KTH, Stockholm`)}`;
 
-export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarEvent[] }) {
+export function CalendarScreen({
+  lang,
+  events,
+  demo = false,
+}: {
+  lang: Lang;
+  events: CalendarEvent[];
+  demo?: boolean;
+}) {
   const c = copy[lang];
   const [view, setView] = useState<"week" | "month">("week");
   const todayKey = toKey(new Date());
@@ -183,13 +191,15 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
 
   const byDay = useMemo(() => {
     const m: Record<string, CalendarEvent[]> = {};
-    for (const e of events) (m[e.date] ??= []).push(e);
+    if (!demo || !subscription) {
+      for (const e of events) (m[e.date] ??= []).push(e);
+    }
     for (const e of subscription?.events ?? []) (m[e.date] ??= []).push(e);
     for (const day of Object.values(m)) {
       day.sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
     }
     return m;
-  }, [events, subscription]);
+  }, [demo, events, subscription]);
 
   const weekStart = startOfWeek(cursor);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));

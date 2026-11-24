@@ -659,7 +659,7 @@ export function Dashboard({
         )}
 
         <div hidden={tab !== "calendar"} className="h-full">
-          <CalendarScreen lang={lang} events={calendarEvents} />
+          <CalendarScreen lang={lang} events={calendarEvents} demo={demo} />
         </div>
 
         {tab === "news" && (
