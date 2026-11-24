@@ -1,7 +1,9 @@
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { getKthPlan, getKthProgrammes, getKthProgrammeTerms } from "@/lib/kth-api";
 import { kthSyllabusUrl } from "@/lib/kth-programmes";
 import { useQuery } from "@tanstack/react-query";
-import type { Dispatch, SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import type { Lang, ProgressCopy } from "@/lib/copy";
 import type { PlanCourse, ProgrammePlan } from "@/lib/kth";
 import { ExternalLink, Info } from "lucide-react";
@@ -82,7 +84,11 @@ export function PlanScreen({
   selection: ProgrammeSelection;
   setSelection: Dispatch<SetStateAction<ProgrammeSelection>>;
 }) {
-  const { degree, school, programme: selectedProgramme, cohort } = selection;
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [draft, setDraft] = useState(selection);
+  const { degree, school } = draft;
+  const draftCode = draft.programme?.code ?? "";
+  const { programme: selectedProgramme, cohort } = selection;
   const code = selectedProgramme?.code ?? "";
   const catalogue = useQuery({
     queryKey: ["kth-programmes"],
@@ -105,6 +111,12 @@ export function PlanScreen({
     queryKey: ["kth-programme-terms", code],
     queryFn: () => getKthProgrammeTerms({ data: code }),
     enabled: Boolean(code),
+    staleTime: 12 * 60 * 60 * 1000,
+  });
+  const draftCohorts = useQuery({
+    queryKey: ["kth-programme-terms", draftCode],
+    queryFn: () => getKthProgrammeTerms({ data: draftCode }),
+    enabled: browserOpen && Boolean(draftCode),
     staleTime: 12 * 60 * 60 * 1000,
   });
   const term = cohort || cohorts.data?.[0] || "";
@@ -196,95 +208,131 @@ export function PlanScreen({
         )}
       </header>
 
-      <section className="space-y-2 rounded-xl border border-border bg-card p-3 shadow-card">
-        <h2 className="text-sm font-bold">{t.browseKthProgrammes}</h2>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <ProgrammeSelect
-            label={t.degreeType}
-            value={degree}
-            placeholder={t.chooseDegree}
-            disabled={!catalogue.data}
-            onChange={(value) => setSelection({ ...emptyProgrammeSelection, degree: value })}
+      <Dialog
+        open={browserOpen}
+        onOpenChange={(open) => {
+          if (open) setDraft(selection);
+          setBrowserOpen(open);
+        }}
+      >
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline" className="min-h-11 rounded-xl">
+            {t.browseKthProgrammes}
+          </Button>
+        </DialogTrigger>
+        <DialogContent
+          aria-describedby={undefined}
+          className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-y-auto overscroll-contain rounded-2xl p-4 sm:p-6"
+        >
+          <DialogTitle className="pr-8">{t.browseKthProgrammes}</DialogTitle>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!draft.programme) return;
+              setSelection(draft);
+              setBrowserOpen(false);
+            }}
           >
-            {degrees.map((value) => (
-              <option key={value} value={value}>
-                {degreeLabels[value]?.[lang] ?? value}
-              </option>
-            ))}
-          </ProgrammeSelect>
-          <ProgrammeSelect
-            label={t.kthSchool}
-            value={school}
-            placeholder={t.chooseSchool}
-            disabled={!degree}
-            onChange={(value) =>
-              setSelection({ ...emptyProgrammeSelection, degree, school: value })
-            }
-          >
-            {schools.map((value) => {
-              const name = schoolNames[value]?.[lang];
-              return (
-                <option key={value} value={value}>
-                  {value === "unlisted" ? t.unlistedSchool : name ? `${value} (${name})` : value}
-                </option>
-              );
-            })}
-          </ProgrammeSelect>
-          <ProgrammeSelect
-            label={t.programme}
-            value={code}
-            placeholder={t.chooseProgramme}
-            disabled={!school}
-            onChange={(value) =>
-              setSelection({
-                degree,
-                school,
-                programme: programmeOptions.find((programme) => programme.code === value) ?? null,
-                cohort: "",
-              })
-            }
-          >
-            {programmeOptions
-              .sort((a, b) => nameOf(a).localeCompare(nameOf(b), lang))
-              .map((programme) => (
-                <option key={programme.code} value={programme.code}>
-                  {nameOf(programme)} ({programme.code})
-                </option>
-              ))}
-          </ProgrammeSelect>
-          <ProgrammeSelect
-            label={t.admissionCohort}
-            value={cohort}
-            placeholder={t.chooseCohort}
-            disabled={!cohorts.data?.length}
-            onChange={(value) => setSelection((current) => ({ ...current, cohort: value }))}
-          >
-            {cohorts.data?.map((value) => (
-              <option key={value} value={value}>
-                {value.endsWith("2") ? t.autumnSemester : t.springSemester} {value.slice(0, 4)}
-              </option>
-            ))}
-          </ProgrammeSelect>
-        </div>
-        {catalogue.isLoading && (
-          <p role="status" className="text-sm text-muted-foreground">
-            {t.catalogueLoading}
-          </p>
-        )}
-        {catalogue.isError && (
-          <p role="alert" className="text-sm text-muted-foreground">
-            {t.catalogueFailed}{" "}
-            <a
-              href="https://www.kth.se/student/kurser/kurser-inom-program"
-              target="_blank"
-              rel="noreferrer"
-              className="font-semibold text-primary underline"
-            >
-              {t.officialSyllabus}
-            </a>
-          </p>
-        )}
-      </section>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <ProgrammeSelect
+                label={t.degreeType}
+                value={degree}
+                placeholder={t.chooseDegree}
+                disabled={!catalogue.data}
+                onChange={(value) => setDraft({ ...emptyProgrammeSelection, degree: value })}
+              >
+                {degrees.map((value) => (
+                  <option key={value} value={value}>
+                    {degreeLabels[value]?.[lang] ?? value}
+                  </option>
+                ))}
+              </ProgrammeSelect>
+              <ProgrammeSelect
+                label={t.kthSchool}
+                value={school}
+                placeholder={t.chooseSchool}
+                disabled={!degree}
+                onChange={(value) =>
+                  setDraft({ ...emptyProgrammeSelection, degree, school: value })
+                }
+              >
+                {schools.map((value) => {
+                  const name = schoolNames[value]?.[lang];
+                  return (
+                    <option key={value} value={value}>
+                      {value === "unlisted"
+                        ? t.unlistedSchool
+                        : name
+                          ? `${value} (${name})`
+                          : value}
+                    </option>
+                  );
+                })}
+              </ProgrammeSelect>
+              <ProgrammeSelect
+                label={t.programme}
+                value={draftCode}
+                placeholder={t.chooseProgramme}
+                disabled={!school}
+                onChange={(value) =>
+                  setDraft({
+                    degree,
+                    school,
+                    programme:
+                      programmeOptions.find((programme) => programme.code === value) ?? null,
+                    cohort: "",
+                  })
+                }
+              >
+                {programmeOptions
+                  .sort((a, b) => nameOf(a).localeCompare(nameOf(b), lang))
+                  .map((programme) => (
+                    <option key={programme.code} value={programme.code}>
+                      {nameOf(programme)} ({programme.code})
+                    </option>
+                  ))}
+              </ProgrammeSelect>
+              <ProgrammeSelect
+                label={t.admissionCohort}
+                value={draft.cohort}
+                placeholder={t.chooseCohort}
+                disabled={!draftCohorts.data?.length}
+                onChange={(value) => setDraft((current) => ({ ...current, cohort: value }))}
+              >
+                {draftCohorts.data?.map((value) => (
+                  <option key={value} value={value}>
+                    {value.endsWith("2") ? t.autumnSemester : t.springSemester} {value.slice(0, 4)}
+                  </option>
+                ))}
+              </ProgrammeSelect>
+            </div>
+            {catalogue.isLoading && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {t.catalogueLoading}
+              </p>
+            )}
+            {catalogue.isError && (
+              <p role="alert" className="text-sm text-muted-foreground">
+                {t.catalogueFailed}{" "}
+                <a
+                  href="https://www.kth.se/student/kurser/kurser-inom-program"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-primary underline"
+                >
+                  {t.officialSyllabus}
+                </a>
+              </p>
+            )}
+            <div className="flex justify-end">
+              <Button type="submit" disabled={!draft.programme} className="min-h-11 rounded-xl">
+                {t.chooseProgramme}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {!plan ? (
         <p
