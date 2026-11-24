@@ -1,12 +1,28 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { getKthPlan, getKthProgrammes, getKthProgrammeTerms } from "@/lib/kth-api";
+import { cn } from "@/lib/utils";
 import { kthSyllabusUrl } from "@/lib/kth-programmes";
 import { useQuery } from "@tanstack/react-query";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Lang, ProgressCopy } from "@/lib/copy";
-import type { PlanCourse, ProgrammePlan } from "@/lib/kth";
-import { ExternalLink, Info } from "lucide-react";
+import { plannedCredits, type PlanCourse, type ProgrammePlan } from "@/lib/kth";
+import { ChevronRight, ExternalLink, Info } from "lucide-react";
+
+const studyPeriods = ["P1", "P2", "P3", "P4"];
+const courseKey = (course: PlanCourse) =>
+  JSON.stringify([course.code, course.kind, course.applicationCode]);
+
+function groupCourses(courses: PlanCourse[]) {
+  const groups = new Map<string, PlanCourse[]>();
+  for (const course of courses) {
+    const key = courseKey(course);
+    const group = groups.get(key) ?? [];
+    group.push(course);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
 
 export const degreeLabels: Record<string, Record<Lang, string>> = {
   TARKU: { en: "Architecture", sv: "Arkitekt" },
@@ -138,35 +154,14 @@ export function PlanScreen({
     { label: t.springSemester, season: "Spring", periods: ["P3", "P4"] },
   ];
   const registered = new Set(myCodes);
+  const [details, setDetails] = useState<{ title: string; courses: PlanCourse[] }>();
+  const detailsTrigger = useRef<HTMLButtonElement>(null);
+  const credits = (value: number) =>
+    `${value.toLocaleString(lang, { maximumFractionDigits: 2 })} ${t.ectsUnit}`;
 
-  function renderCourseGroups(courses: PlanCourse[]) {
-    return (["mandatory", "elective"] as const).map((kind) => {
-      const group = courses.filter((course) => course.kind === kind);
-      if (!group.length) return null;
-
-      return (
-        <div key={kind}>
-          <h5
-            className={`mb-1 text-xs font-bold ${kind === "mandatory" ? "text-primary" : "text-success"}`}
-          >
-            {kind === "mandatory" ? t.mandatoryCourses : t.electiveOptions}
-          </h5>
-          <ul className="space-y-1">
-            {group.map((course) => (
-              <li key={`${course.code}-${course.applicationCode}`}>
-                <PlanCourseCard
-                  course={course}
-                  t={t}
-                  lang={lang}
-                  mine={registered.has(course.code)}
-                  demo={demo && !code}
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-      );
-    });
+  function openDetails(trigger: HTMLButtonElement, title: string, courses: PlanCourse[]) {
+    detailsTrigger.current = trigger;
+    setDetails({ title, courses });
   }
 
   return (
@@ -353,97 +348,228 @@ export function PlanScreen({
               </ul>
             </div>
           )}
-          {Array.from({ length: Math.ceil(plan.years) }, (_, index) => index + 1).map((year) => {
-            const yearCourses = plan.courses.filter((course) => course.year === year);
-            const yearHeading = `plan-year-${year}`;
-            const otherCourses = yearCourses.filter(
-              (course) =>
-                !semesters.some(
-                  ({ periods, season }) =>
-                    periods.includes(course.period) ||
-                    (!course.period && course.semester.startsWith(season)),
-                ),
-            );
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs font-semibold text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-primary" aria-hidden="true" />
+              {t.mandatoryCourses}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-success" aria-hidden="true" />
+              {t.electiveOptions}
+            </span>
+          </div>
+          {[
+            ...new Set([
+              ...Array.from({ length: Math.ceil(plan.years) }, (_, index) => index + 1),
+              ...plan.courses.map((course) => course.year),
+            ]),
+          ]
+            .sort((a, b) => a - b)
+            .map((year) => {
+              const yearCourses = plan.courses.filter((course) => course.year === year);
+              const yearTitle = t.yearN(year);
+              const unscheduled = yearCourses.filter(
+                (course) => !studyPeriods.includes(course.period),
+              );
+              const mandatoryCredits = plannedCredits({ ...plan, courses: yearCourses }, []);
 
-            return (
-              <section
-                key={year}
-                aria-labelledby={yearHeading}
-                className="overflow-hidden rounded-2xl border border-border bg-card shadow-card"
-              >
-                <h2
-                  id={yearHeading}
-                  className="bg-primary-soft px-3 py-2 font-display text-lg font-bold text-primary"
+              return (
+                <section
+                  key={year}
+                  className="space-y-2 rounded-2xl border border-border bg-card p-2 shadow-card sm:p-4"
                 >
-                  {t.yearN(year)}
-                </h2>
-                <div className="grid divide-y divide-border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-                  {semesters.map(({ label, season, periods }) => {
-                    const unconfirmed = yearCourses.filter(
-                      (course) => !course.period && course.semester.startsWith(season),
-                    );
-                    const calendarYear = yearCourses
-                      .find(
-                        (course) => periods.includes(course.period) || unconfirmed.includes(course),
-                      )
-                      ?.semester.match(/\b\d{4}\b/)?.[0];
-
-                    return (
-                      <section key={label} className="min-w-0 space-y-2 p-2.5">
-                        <h3 className="font-display text-base font-bold">
-                          {label}
-                          {calendarYear ? ` ${calendarYear}` : ""}
-                        </h3>
-                        <div className="grid gap-2 min-[380px]:grid-cols-2">
-                          {periods.map((period) => {
-                            const periodCourses = yearCourses.filter(
-                              (course) => course.period === period,
-                            );
-
-                            return (
-                              <section
-                                key={period}
-                                className="min-w-0 space-y-2 rounded-lg bg-secondary/55 p-2"
-                              >
-                                <h4 className="text-sm font-bold">
-                                  {t.studyPeriod} {period.slice(1)}
-                                </h4>
-                                {periodCourses.length === 0 ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    {t.noPlannedCourses}
-                                  </p>
-                                ) : (
-                                  renderCourseGroups(periodCourses)
-                                )}
-                              </section>
-                            );
-                          })}
-                        </div>
-                        {unconfirmed.length > 0 && (
-                          <section className="space-y-2 rounded-lg bg-secondary/55 p-2">
-                            <h4 className="text-sm font-bold">{t.unconfirmedStudyPeriod}</h4>
-                            <div className="grid gap-2 min-[380px]:grid-cols-2">
-                              {renderCourseGroups(unconfirmed)}
-                            </div>
-                          </section>
-                        )}
-                      </section>
-                    );
-                  })}
-                </div>
-                {otherCourses.length > 0 && (
-                  <section className="space-y-2 border-t border-border p-2.5">
-                    <h4 className="text-sm font-bold">{t.otherStudyPeriods}</h4>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {renderCourseGroups(otherCourses)}
-                    </div>
-                  </section>
-                )}
-              </section>
-            );
-          })}
+                  <h2>
+                    <button
+                      type="button"
+                      onClick={(event) => openDetails(event.currentTarget, yearTitle, yearCourses)}
+                      className="flex min-h-11 w-full flex-wrap items-center gap-2 rounded-lg px-2 text-left hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-primary"
+                    >
+                      <span className="mr-auto font-display text-lg font-bold">{yearTitle}</span>
+                      {mandatoryCredits > 0 && (
+                        <span className="text-xs font-semibold text-muted-foreground">
+                          {credits(mandatoryCredits)} · {t.mandatoryCourses}
+                        </span>
+                      )}
+                      <ChevronRight className="size-4 text-primary" aria-hidden="true" />
+                    </button>
+                  </h2>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {semesters.map(({ label, season, periods }) => {
+                      const courses = yearCourses.filter(
+                        (course) =>
+                          periods.includes(course.period) ||
+                          (!studyPeriods.includes(course.period) &&
+                            course.semester.startsWith(season)),
+                      );
+                      const calendarYear = courses
+                        .find((course) => course.semester.startsWith(season))
+                        ?.semester.match(/\b\d{4}\b/)?.[0];
+                      const title = calendarYear ? `${label} ${calendarYear}` : label;
+                      return (
+                        <button
+                          key={season}
+                          type="button"
+                          className="flex min-h-10 items-center justify-center gap-1 rounded-lg bg-secondary px-1 text-center text-xs font-semibold hover:bg-primary-soft focus-visible:outline-2 focus-visible:outline-primary sm:text-sm"
+                          onClick={(event) =>
+                            openDetails(event.currentTarget, `${yearTitle} · ${title}`, courses)
+                          }
+                        >
+                          {title}
+                          <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-flow-row-dense grid-cols-4 gap-1.5">
+                    {studyPeriods.map((period) => (
+                      <button
+                        key={period}
+                        type="button"
+                        className="min-h-9 rounded-md border border-border text-xs font-bold text-primary hover:bg-primary-soft focus-visible:outline-2 focus-visible:outline-primary"
+                        aria-label={`${yearTitle} · ${t.studyPeriod} ${period.slice(1)}`}
+                        onClick={(event) =>
+                          openDetails(
+                            event.currentTarget,
+                            `${yearTitle} · ${t.studyPeriod} ${period.slice(1)}`,
+                            yearCourses.filter((course) => course.period === period),
+                          )
+                        }
+                      >
+                        {period}
+                      </button>
+                    ))}
+                    {groupCourses(
+                      yearCourses.filter((course) => studyPeriods.includes(course.period)),
+                    ).flatMap((courses) => {
+                      const columns = [
+                        ...new Set(
+                          courses.map((course) => studyPeriods.indexOf(course.period) + 1),
+                        ),
+                      ].sort((a, b) => a - b);
+                      const start = columns[0] ?? 1;
+                      const end = columns.at(-1) ?? start;
+                      const blocks =
+                        end - start + 1 === columns.length
+                          ? [{ start, end, courses }]
+                          : columns.map((column) => ({
+                              start: column,
+                              end: column,
+                              courses: courses.filter(
+                                (course) => course.period === studyPeriods[column - 1],
+                              ),
+                            }));
+                      return blocks.map((block) => {
+                        const first = block.courses[0]!;
+                        return (
+                          <button
+                            key={`${courseKey(first)}-${block.start}`}
+                            type="button"
+                            style={{ gridColumn: `${block.start} / ${block.end + 1}` }}
+                            onClick={(event) =>
+                              openDetails(event.currentTarget, first.name, block.courses)
+                            }
+                            className={cn(
+                              "flex min-h-16 min-w-0 flex-col items-start justify-between gap-1 rounded-lg border border-transparent px-1.5 py-2 text-left hover:border-current focus-visible:outline-2 focus-visible:outline-primary sm:px-3",
+                              first.kind === "mandatory"
+                                ? "bg-primary-soft text-primary"
+                                : "bg-success-soft text-success",
+                            )}
+                          >
+                            <span className="line-clamp-2 wrap-anywhere text-xs leading-tight font-semibold text-foreground sm:text-sm">
+                              {first.name}
+                            </span>
+                            <span className="text-[10px] leading-tight font-semibold sm:text-xs">
+                              {credits(
+                                block.courses.reduce((total, course) => total + course.credits, 0),
+                              )}
+                              {block.start !== block.end && ` · P${block.start}–P${block.end}`}
+                            </span>
+                          </button>
+                        );
+                      });
+                    })}
+                  </div>
+                  {unscheduled.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(event) =>
+                        openDetails(
+                          event.currentTarget,
+                          `${yearTitle} · ${t.otherStudyPeriods}`,
+                          unscheduled,
+                        )
+                      }
+                      className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg border border-dashed border-border px-2 text-left text-xs font-semibold hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary"
+                    >
+                      {t.otherStudyPeriods}
+                      <ChevronRight className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                    </button>
+                  )}
+                </section>
+              );
+            })}
         </>
       )}
+      <Dialog
+        open={Boolean(details)}
+        onOpenChange={(open) => {
+          if (!open) setDetails(undefined);
+        }}
+      >
+        {details && (
+          <DialogContent
+            aria-describedby={undefined}
+            className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto overscroll-contain rounded-2xl p-4 sm:p-6"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              detailsTrigger.current?.focus();
+            }}
+          >
+            <DialogTitle className="pr-8 leading-snug">{details.title}</DialogTitle>
+            {details.courses.length === 0 && (
+              <p className="text-sm text-muted-foreground">{t.noPlannedCourses}</p>
+            )}
+            {(["mandatory", "elective"] as const).map((kind) => {
+              const groups = groupCourses(details.courses.filter((course) => course.kind === kind));
+              if (groups.length === 0) return null;
+              return (
+                <div key={kind} className="space-y-2">
+                  <h3 className="text-sm font-bold">
+                    {kind === "mandatory" ? t.mandatoryCourses : t.electiveOptions}
+                  </h3>
+                  <ul className="grid gap-2 sm:grid-cols-2">
+                    {groups.map(
+                      ([first, ...rest]) =>
+                        first && (
+                          <li key={courseKey(first)}>
+                            <PlanCourseCard
+                              course={first}
+                              credits={credits(
+                                first.credits +
+                                  rest.reduce((sum, course) => sum + course.credits, 0),
+                              )}
+                              periods={[
+                                ...new Set(
+                                  [first, ...rest].map((course) => course.period).filter(Boolean),
+                                ),
+                              ]
+                                .sort()
+                                .join(", ")}
+                              t={t}
+                              lang={lang}
+                              mine={registered.has(first.code)}
+                              demo={demo && !code}
+                            />
+                          </li>
+                        ),
+                    )}
+                  </ul>
+                </div>
+              );
+            })}
+          </DialogContent>
+        )}
+      </Dialog>
     </section>
   );
 }
@@ -481,12 +607,16 @@ function ProgrammeSelect({
 
 function PlanCourseCard({
   course,
+  credits,
+  periods,
   t,
   lang,
   mine,
   demo,
 }: {
   course: PlanCourse;
+  credits: string;
+  periods: string;
   t: ProgressCopy;
   lang: Lang;
   mine: boolean;
@@ -511,8 +641,7 @@ function PlanCourseCard({
       <p className="flex flex-wrap items-center gap-x-2 text-[11px] leading-tight font-semibold text-muted-foreground">
         <span>{course.code}</span>
         <span>
-          {course.credits} {t.ectsUnit}
-          {course.spansTwoPeriods ? ` · ${course.period}` : ""}
+          {credits} · {periods || t.unconfirmedStudyPeriod}
         </span>
         {mine && <span className="text-primary">{t.yourCourse}</span>}
       </p>
