@@ -135,7 +135,11 @@ export function PlanScreen({
     enabled: browserOpen && Boolean(draftCode),
     staleTime: 12 * 60 * 60 * 1000,
   });
-  const term = cohort || cohorts.data?.[0] || "";
+  const now = new Date();
+  const currentTerm = `${now.getFullYear()}${now.getMonth() < 7 ? "1" : "2"}`;
+  const defaultCohort = (terms: string[] | undefined) =>
+    terms?.find((value) => value <= currentTerm) ?? terms?.[0] ?? "";
+  const term = cohort || defaultCohort(cohorts.data);
   const selectedPlan = useQuery({
     queryKey: ["kth-programme-structure", code, term],
     queryFn: () => getKthPlan({ data: { programmeCode: code, term, includeDetails: false } }),
@@ -197,7 +201,9 @@ export function PlanScreen({
             className="mt-1 inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
           >
             {t.officialSyllabus}
-            {code && term ? ` · ${term.slice(0, 4)}` : ""}
+            {code && term
+              ? ` · ${term.endsWith("2") ? t.autumnSemester : t.springSemester} ${term.slice(0, 4)}`
+              : ""}
             <ExternalLink className="size-4" aria-hidden="true" />
           </a>
         )}
@@ -290,7 +296,7 @@ export function PlanScreen({
               </ProgrammeSelect>
               <ProgrammeSelect
                 label={t.admissionCohort}
-                value={draft.cohort}
+                value={draft.cohort || defaultCohort(draftCohorts.data)}
                 placeholder={t.chooseCohort}
                 disabled={!draftCohorts.data?.length}
                 onChange={(value) => setDraft((current) => ({ ...current, cohort: value }))}
@@ -420,7 +426,7 @@ export function PlanScreen({
                       );
                     })}
                   </div>
-                  <div className="grid grid-flow-row-dense grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-4 gap-1.5">
                     {studyPeriods.map((period) => (
                       <button
                         key={period}
@@ -438,73 +444,118 @@ export function PlanScreen({
                         {period}
                       </button>
                     ))}
-                    {groupCourses(
-                      yearCourses.filter((course) => studyPeriods.includes(course.period)),
-                    ).flatMap((courses) => {
-                      const columns = [
-                        ...new Set(
-                          courses.map((course) => studyPeriods.indexOf(course.period) + 1),
-                        ),
-                      ].sort((a, b) => a - b);
-                      const start = columns[0] ?? 1;
-                      const end = columns.at(-1) ?? start;
-                      const blocks =
-                        end - start + 1 === columns.length
-                          ? [{ start, end, courses }]
-                          : columns.map((column) => ({
-                              start: column,
-                              end: column,
-                              courses: courses.filter(
-                                (course) => course.period === studyPeriods[column - 1],
-                              ),
-                            }));
-                      return blocks.map((block) => {
-                        const first = block.courses[0]!;
-                        return (
-                          <button
-                            key={`${courseKey(first)}-${block.start}`}
-                            type="button"
-                            style={{ gridColumn: `${block.start} / ${block.end + 1}` }}
-                            onClick={(event) =>
-                              openDetails(event.currentTarget, first.name, block.courses)
-                            }
-                            className={cn(
-                              "flex min-h-16 min-w-0 flex-col items-start justify-between gap-1 rounded-lg border border-transparent px-1.5 py-2 text-left hover:border-current focus-visible:outline-2 focus-visible:outline-primary sm:px-3",
-                              first.kind === "mandatory"
-                                ? "bg-primary-soft text-primary"
-                                : "bg-success-soft text-success",
-                            )}
-                          >
-                            <span className="line-clamp-2 wrap-anywhere text-xs leading-tight font-semibold text-foreground sm:text-sm">
-                              {first.name}
-                            </span>
-                            <span className="text-[10px] leading-tight font-semibold sm:text-xs">
-                              {credits(
-                                block.courses.reduce((total, course) => total + course.credits, 0),
-                              )}
-                              {block.start !== block.end && ` · P${block.start}–P${block.end}`}
-                            </span>
-                          </button>
-                        );
-                      });
-                    })}
                   </div>
-                  {unscheduled.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={(event) =>
-                        openDetails(
-                          event.currentTarget,
-                          `${yearTitle} · ${t.otherStudyPeriods}`,
-                          unscheduled,
-                        )
-                      }
-                      className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg border border-dashed border-border px-2 text-left text-xs font-semibold hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary"
-                    >
-                      {t.otherStudyPeriods}
-                      <ChevronRight className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                    </button>
-                  )}
+                  {(["mandatory", "elective"] as const).map((kind) => {
+                    const scheduled = yearCourses.filter(
+                      (course) => course.kind === kind && studyPeriods.includes(course.period),
+                    );
+                    const unpublished = unscheduled.filter((course) => course.kind === kind);
+                    if (!scheduled.length && !unpublished.length) return null;
+                    const label = kind === "mandatory" ? t.mandatoryCourses : t.electiveOptions;
+                    return (
+                      <div key={kind} className="space-y-1.5 border-t border-border pt-2">
+                        <h3 className="px-1 text-xs font-bold">{label}</h3>
+                        {scheduled.length > 0 && (
+                          <div className="grid grid-flow-row-dense grid-cols-4 gap-1.5">
+                            {groupCourses(scheduled).flatMap((courses) => {
+                              const columns = [
+                                ...new Set(
+                                  courses.map((course) => studyPeriods.indexOf(course.period) + 1),
+                                ),
+                              ].sort((a, b) => a - b);
+                              const start = columns[0] ?? 1;
+                              const end = columns.at(-1) ?? start;
+                              const blocks =
+                                end - start + 1 === columns.length
+                                  ? [{ start, end, courses }]
+                                  : columns.map((column) => ({
+                                      start: column,
+                                      end: column,
+                                      courses: courses.filter(
+                                        (course) => course.period === studyPeriods[column - 1],
+                                      ),
+                                    }));
+                              return blocks.map((block) => {
+                                const first = block.courses[0]!;
+                                return (
+                                  <button
+                                    key={`${courseKey(first)}-${block.start}`}
+                                    type="button"
+                                    style={{ gridColumn: `${block.start} / ${block.end + 1}` }}
+                                    onClick={(event) =>
+                                      openDetails(event.currentTarget, first.name, block.courses)
+                                    }
+                                    className={cn(
+                                      "flex min-h-16 min-w-0 flex-col items-start justify-between gap-1 rounded-lg border border-transparent px-1.5 py-2 text-left hover:border-current focus-visible:outline-2 focus-visible:outline-primary sm:px-3",
+                                      first.kind === "mandatory"
+                                        ? "bg-primary-soft text-primary"
+                                        : "bg-success-soft text-success",
+                                    )}
+                                  >
+                                    <span className="wrap-anywhere text-xs leading-tight font-semibold text-foreground sm:text-sm">
+                                      {first.name}
+                                    </span>
+                                    <span className="text-[10px] leading-tight font-semibold sm:text-xs">
+                                      {credits(
+                                        block.courses.reduce(
+                                          (total, course) => total + course.credits,
+                                          0,
+                                        ),
+                                      )}
+                                      {block.start !== block.end &&
+                                        ` · P${block.start}–P${block.end}`}
+                                    </span>
+                                  </button>
+                                );
+                              });
+                            })}
+                          </div>
+                        )}
+                        {unpublished.length > 0 && (
+                          <div className="rounded-lg border border-dashed border-border p-2">
+                            <h4 className="text-xs font-semibold text-muted-foreground">
+                              {t.unconfirmedStudyPeriod}
+                            </h4>
+                            <ul className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+                              {groupCourses(unpublished).map(
+                                ([first, ...rest]) =>
+                                  first && (
+                                    <li key={courseKey(first)}>
+                                      <button
+                                        type="button"
+                                        onClick={(event) =>
+                                          openDetails(event.currentTarget, first.name, [
+                                            first,
+                                            ...rest,
+                                          ])
+                                        }
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-md bg-secondary/60 px-2 py-1 text-left hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary"
+                                      >
+                                        <span className="min-w-0 flex-1 wrap-anywhere text-xs font-semibold">
+                                          {first.name}
+                                        </span>
+                                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                                          {credits(
+                                            [first, ...rest].reduce(
+                                              (sum, course) => sum + course.credits,
+                                              0,
+                                            ),
+                                          )}
+                                        </span>
+                                        <ChevronRight
+                                          className="size-3 shrink-0 text-primary"
+                                          aria-hidden="true"
+                                        />
+                                      </button>
+                                    </li>
+                                  ),
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </section>
               );
             })}
