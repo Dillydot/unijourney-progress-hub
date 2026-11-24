@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ExternalLink, Link2, MapPin } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Link2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -200,6 +200,12 @@ export function CalendarScreen({
     }
     return m;
   }, [demo, events, subscription]);
+
+  const selectedEvents = dayDetails
+    ? (byDay[dayDetails.date] ?? []).filter(
+        (event) => !dayDetails.eventId || event.id === dayDetails.eventId,
+      )
+    : [];
 
   const weekStart = startOfWeek(cursor);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -473,26 +479,26 @@ export function CalendarScreen({
         {dayDetails && (
           <DialogContent
             aria-describedby={undefined}
-            className="max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-2rem)] overflow-y-auto overscroll-contain rounded-2xl p-4 sm:p-6"
+            className="max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-2rem)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-2xl p-0"
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               dayDetailsTrigger.current?.focus();
             }}
           >
-            <DialogTitle className="pr-6 capitalize">
+            <DialogTitle className="border-b border-border px-4 py-4 pr-11 capitalize sm:px-5 sm:pr-11">
               {fmt(fromKey(dayDetails.date), {
                 weekday: "long",
                 day: "numeric",
                 month: "long",
               })}
             </DialogTitle>
-            <div className="space-y-2">
-              {byDay[dayDetails.date]
-                ?.filter((event) => !dayDetails.eventId || event.id === dayDetails.eventId)
-                .map((event) => (
-                  <EventItem key={event.id} e={event} c={c} />
-                ))}
-            </div>
+            <ul className="min-h-0 space-y-1.5 overflow-y-auto overscroll-contain p-3 sm:p-4">
+              {selectedEvents.map((event) => (
+                <li key={event.id}>
+                  <EventItem e={event} c={c} expanded={selectedEvents.length === 1} />
+                </li>
+              ))}
+            </ul>
           </DialogContent>
         )}
       </Dialog>
@@ -868,71 +874,99 @@ function WeekTimeline({
   );
 }
 
-function EventItem({ e, c }: { e: CalendarEvent; c: (typeof copy)[Lang] }) {
+function EventItem({
+  e,
+  c,
+  expanded,
+}: {
+  e: CalendarEvent;
+  c: (typeof copy)[Lang];
+  expanded: boolean;
+}) {
   const mapsHref = e.location ? mapsUrl(e.location) : undefined;
-  const body = (
-    <>
-      <div className="flex flex-wrap items-center gap-1.5">
+  const description = e.description?.trim().replace(/\n(?:[^\S\n]*\n){2,}/g, "\n\n");
+  const hasDetails = Boolean(description || e.href || mapsHref);
+  const time = e.start && e.end ? `${e.start}–${e.end}` : (e.start ?? e.end ?? c.allDay);
+  const heading = (
+    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] font-medium text-muted-foreground">
+        <span className="font-semibold tabular-nums">{time}</span>
         {e.kind && (
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+              "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
               kindStyle[e.kind].chip,
             )}
           >
             {c.kinds[e.kind]}
           </span>
         )}
-        <span className="text-xs font-semibold text-muted-foreground">
-          {e.start && e.end ? `${e.start}–${e.end}` : (e.start ?? e.end ?? c.allDay)}
+        {e.code && <span>{e.code}</span>}
+      </span>
+      <span className="wrap-anywhere text-sm leading-snug font-semibold text-foreground">
+        {e.title}
+      </span>
+      {(e.room || e.location) && (
+        <span className="flex items-start gap-1 wrap-anywhere text-xs text-muted-foreground">
+          <MapPin className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+          {e.room ?? e.location}
         </span>
-        {e.code && <span className="text-xs text-muted-foreground">· {e.code}</span>}
-      </div>
-      <p className="mt-0.5 text-[13px] font-semibold leading-snug text-foreground">{e.title}</p>
-      {e.description && (
-        <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-muted-foreground">
-          {e.description}
-        </p>
       )}
-      {e.room && (
-        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-          <MapPin className="size-3" /> {e.room}
-        </p>
-      )}
-      {(e.href || mapsHref) && (
-        <div className="flex flex-wrap gap-x-3">
-          {e.href && (
-            <a
-              href={e.href}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-10 items-center gap-1 text-xs font-bold text-primary hover:underline"
-            >
-              {c.open} {new URL(e.href).hostname.replace("www.", "")}
-              <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
-            </a>
-          )}
-          {mapsHref && (
-            <a
-              href={mapsHref}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-10 items-center gap-1 text-xs font-bold text-primary hover:underline"
-            >
-              {c.openMaps}
-              <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
-            </a>
-          )}
-        </div>
-      )}
-    </>
+    </span>
   );
-  const cls = cn("block min-w-0 wrap-anywhere rounded-xl border-l-4 bg-secondary/50 px-3 py-1.5", {
-    "border-primary": e.kind === "lecture",
-    "border-success": e.kind === "seminar",
-    "border-destructive": e.kind === "exam",
-    "border-warning": e.kind === "application",
-    "border-foreground": e.kind === "registration",
-  });
-  return <div className={cls}>{body}</div>;
+  const card = "rounded-lg border border-border bg-card";
+  const row = "flex min-w-0 items-center gap-2 px-3 py-2";
+  if (!hasDetails) {
+    return <div className={cn(card, row)}>{heading}</div>;
+  }
+
+  return (
+    <details name="calendar-day-event" open={expanded} className={cn("group", card)}>
+      <summary
+        className={cn(
+          "cursor-pointer list-none rounded-lg marker:content-none [&::-webkit-details-marker]:hidden hover:bg-secondary/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+          row,
+        )}
+      >
+        {heading}
+        <ChevronDown
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        />
+      </summary>
+      <div className="border-t border-border px-3 py-2">
+        {description && (
+          <p className="wrap-anywhere whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+            {description}
+          </p>
+        )}
+        {(e.href || mapsHref) && (
+          <div className="flex flex-wrap gap-x-3">
+            {e.href && (
+              <a
+                href={e.href}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-10 items-center gap-1 text-xs font-bold text-primary hover:underline"
+              >
+                {c.open} {new URL(e.href).hostname.replace("www.", "")}
+                <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+              </a>
+            )}
+            {mapsHref && (
+              <a
+                href={mapsHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-10 items-center gap-1 text-xs font-bold text-primary hover:underline"
+              >
+                {c.openMaps}
+                <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    </details>
+  );
 }
