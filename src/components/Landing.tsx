@@ -5,6 +5,24 @@ import { useEffect, useState } from "react";
 // Images live in public/landing/.
 const img = (name: string) => `/landing/${name}`;
 
+const setupSteps = [
+  {
+    title: "Upload your Ladok documents",
+    description:
+      "Download your transcript of records and certificate of registration from Ladok as PDFs. Sign in to UniJourney and upload both in Progress to see your grades and earned credits.",
+  },
+  {
+    title: "Choose your programme",
+    description:
+      "In Plan, select Browse KTH programmes. Choose your degree type, such as BSc or MSc, then your school and programme to see its required and elective courses.",
+  },
+  {
+    title: "Connect your schedule",
+    description:
+      "Copy your personal iCalendar link from KTH Calendar Settings. In UniJourney, go to Calendar, select Connect your schedule, and paste the link to see your timetable.",
+  },
+];
+
 const features = [
   {
     n: "01",
@@ -145,7 +163,10 @@ export function Landing() {
           <img src={img("unijourney-logo.png")} alt="" className="h-10 w-10 shrink-0" />
           <span>UniJourney</span>
         </a>
-        <nav className="flex items-center gap-8 text-sm text-muted-foreground">
+        <nav className="flex items-center gap-4 text-sm text-muted-foreground lg:gap-8">
+          <a href="#how-it-works" className="hidden hover:text-foreground md:inline">
+            How it works
+          </a>
           <a href="#features" className="hidden hover:text-foreground md:inline">
             Features
           </a>
@@ -218,6 +239,39 @@ export function Landing() {
               <p className="text-sm font-semibold">Deadline in 2 days</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section
+        id="how-it-works"
+        aria-labelledby="how-it-works-title"
+        className="border-y border-border bg-secondary/40"
+      >
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <h2 id="how-it-works-title" className="text-4xl font-semibold md:text-5xl">
+            How it works
+          </h2>
+          <ol className="mt-8 grid gap-3 md:grid-cols-3 md:gap-5">
+            {setupSteps.map(({ title, description }, index) => (
+              <li
+                key={title}
+                className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-2xl border border-border bg-card p-4 md:flex md:flex-col md:p-6"
+              >
+                <span
+                  aria-hidden="true"
+                  className="grid size-8 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground"
+                >
+                  {index + 1}
+                </span>
+                <div>
+                  <h3 className="text-lg font-semibold">{title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                    {description}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 
