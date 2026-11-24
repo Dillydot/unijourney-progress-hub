@@ -443,7 +443,10 @@ export function Landing() {
           <h2 id="team-heading" className="text-4xl font-semibold md:text-5xl">
             The people behind UniJourney
           </h2>
-          <p className="mt-3 text-lg text-muted-foreground">Built by students, for students.</p>
+          <p className="mt-3 max-w-xl text-lg text-muted-foreground">
+            Have a question or an idea for UniJourney? Connect with us on LinkedIn. We’d love to
+            hear from you.
+          </p>
           <ul className="mt-8 grid gap-3 md:mt-10 md:grid-cols-3 md:gap-6">
             {team.map((member) => (
               <li key={member.name} className="min-w-0">
@@ -451,7 +454,7 @@ export function Landing() {
                   href={member.linkedin}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={`${member.name} on LinkedIn`}
+                  aria-label={`Connect with ${member.name} on LinkedIn`}
                   className="group grid h-full grid-cols-[minmax(0,2fr)_minmax(0,3fr)] overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary md:flex md:flex-col"
                 >
                   <div className="relative min-h-32 overflow-hidden bg-secondary md:aspect-[4/3]">
@@ -471,8 +474,8 @@ export function Landing() {
                     </h3>
                     <p className="text-sm leading-snug text-muted-foreground">{member.role}</p>
                     <span className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-semibold text-primary md:pt-4">
-                      LinkedIn
-                      <ArrowUpRight className="size-4" aria-hidden="true" />
+                      Connect on LinkedIn
+                      <ArrowUpRight className="size-4 shrink-0" aria-hidden="true" />
                     </span>
                   </div>
                 </a>
