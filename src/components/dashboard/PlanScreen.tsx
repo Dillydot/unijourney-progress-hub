@@ -164,6 +164,33 @@ export function PlanScreen({
               {code || programmeCode}
             </span>
           )}
+          {plan && plan.notes.length > 0 && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto rounded-full text-primary"
+                  aria-label={t.programmeNotes}
+                >
+                  <Info className="size-4" aria-hidden="true" />
+                  Info
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                aria-describedby={undefined}
+                className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto overscroll-contain rounded-2xl p-4 sm:p-6"
+              >
+                <DialogTitle className="pr-8 leading-snug">{t.programmeNotes}</DialogTitle>
+                <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
+                  {plan.notes.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
         <h1 className="mt-2 font-display text-2xl leading-tight font-bold wrap-anywhere md:text-3xl">
           {selectedProgramme ? nameOf(selectedProgramme) : plan?.name || programmeName}
@@ -315,16 +342,6 @@ export function PlanScreen({
         </p>
       ) : (
         <>
-          {plan.notes.length > 0 && (
-            <div className="flex items-start gap-2 rounded-xl border border-border bg-primary-soft p-3 text-sm">
-              <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-              <ul className="space-y-1">
-                {plan.notes.map((note) => (
-                  <li key={note}>{note}</li>
-                ))}
-              </ul>
-            </div>
-          )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs font-semibold text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span className="size-2 rounded-full bg-primary" aria-hidden="true" />
