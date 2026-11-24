@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 // Images live in public/landing/.
@@ -323,41 +324,47 @@ export function Landing() {
         </div>
       </section>
 
-      <section id="team" className="mx-auto max-w-6xl px-6 py-24">
-        <h2 className="max-w-xl text-4xl font-semibold md:text-5xl">
-          The people behind UniJourney
-        </h2>
-        <p className="mt-4 max-w-xl text-lg text-muted-foreground">
-          The dynamic team behind UniJourney, an app for students by students. Reach out on LinkedIn
-          — we're always happy to talk.
-        </p>
-        <div className="mt-14 grid gap-6 md:grid-cols-3">
-          {team.map((m) => (
-            <a
-              key={m.name}
-              href={m.linkedin}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex flex-col rounded-2xl border bg-card p-8 transition hover:-translate-y-1 hover:shadow-lg"
-            >
-              <img
-                src={m.src}
-                alt={`Portrait of ${m.name}`}
-                className="h-28 w-28 rounded-full object-cover ring-2 ring-primary/25 ring-offset-4 ring-offset-card"
-              />
-              <h3 className="mt-6 text-2xl font-semibold">{m.name}</h3>
-              <p className="mt-2 text-sm font-semibold uppercase tracking-wide text-primary">
-                {m.role}
-              </p>
-              <span className="mt-auto inline-flex items-center gap-2 pt-6 text-sm font-semibold text-primary">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="h-4 w-4">
-                  <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.63-1.85 3.36-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.07 2.07 0 1 1 0-4.14 2.07 2.07 0 0 1 0 4.14zM7.12 20.45H3.55V9h3.57v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.55C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.72C24 .77 23.2 0 22.22 0z" />
-                </svg>
-                Connect on LinkedIn
-                <span className="transition group-hover:translate-x-1">→</span>
-              </span>
-            </a>
-          ))}
+      <section id="team" aria-labelledby="team-heading" className="border-t bg-secondary/40">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-24">
+          <h2 id="team-heading" className="text-4xl font-semibold md:text-5xl">
+            The people behind UniJourney
+          </h2>
+          <p className="mt-3 text-lg text-muted-foreground">Built by students, for students.</p>
+          <ul className="mt-8 grid gap-3 md:mt-10 md:grid-cols-3 md:gap-6">
+            {team.map((member) => (
+              <li key={member.name} className="min-w-0">
+                <a
+                  href={member.linkedin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${member.name} on LinkedIn`}
+                  className="group grid h-full grid-cols-[minmax(0,2fr)_minmax(0,3fr)] overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary md:flex md:flex-col"
+                >
+                  <div className="relative min-h-32 overflow-hidden bg-secondary md:aspect-[4/3]">
+                    <img
+                      src={member.src}
+                      alt=""
+                      width={800}
+                      height={800}
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 size-full object-cover object-[center_35%] motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-hover:scale-105"
+                    />
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5 p-4 md:p-5">
+                    <h3 className="wrap-anywhere text-lg leading-tight font-semibold lg:text-xl">
+                      {member.name}
+                    </h3>
+                    <p className="text-sm leading-snug text-muted-foreground">{member.role}</p>
+                    <span className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-semibold text-primary md:pt-4">
+                      LinkedIn
+                      <ArrowUpRight className="size-4" aria-hidden="true" />
+                    </span>
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
