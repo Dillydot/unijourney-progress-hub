@@ -1,6 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, CalendarDays, ChartNoAxesCombined, Map } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  ArrowUpRight,
+  CalendarDays,
+  ChartNoAxesCombined,
+  ChevronLeft,
+  ChevronRight,
+  Map,
+  ZoomIn,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 // Images live in public/landing/.
 const img = (name: string) => `/landing/${name}`;
@@ -47,30 +55,35 @@ const features = [
 const screens = [
   {
     src: img("dashboard.png"),
+    crop: { left: 14, top: 8, width: 393, height: 852, imageWidth: 428 },
     t: "Dashboard",
     d: "Academic year at a glance — programme progress, credits and the next deadline, right when you open the app.",
   },
   {
     src: img("progress.png"),
+    crop: { left: 26, top: 10, width: 393, height: 852, imageWidth: 457 },
     t: "Progress",
     d: "Credits earned against your expected study plan — see how far you've come and what's still ahead.",
   },
   {
     src: img("plan.png"),
+    crop: { left: 10, top: 10, width: 393, height: 852, imageWidth: 422 },
     t: "Plan",
     d: "Explore mandatory and elective courses by year, semester and study period, and build your programme plan.",
   },
   {
     src: img("calendar.png"),
+    crop: { left: 12, top: 7, width: 393, height: 852, imageWidth: 427 },
     t: "Calendar",
     d: "See lectures, seminars, exams and registrations in weekly and monthly views. Open an event for details and map links.",
   },
   {
     src: img("news.png"),
+    crop: { left: 6, top: 16, width: 393, height: 852, imageWidth: 423 },
     t: "News",
     d: "Stories from your university, filtered by topic — choose which notifications you want to receive.",
   },
-];
+] as const;
 
 const roadmap = [
   {
@@ -112,7 +125,28 @@ const team = [
   },
 ];
 
-const heroScreen = img("dashboard.png");
+type Screenshot = (typeof screens)[number];
+
+function ScreenshotImage({ screen }: { screen: Screenshot }) {
+  const { left, top, width, height, imageWidth } = screen.crop;
+  return (
+    <span
+      className="relative block overflow-hidden bg-card"
+      style={{ aspectRatio: `${width} / ${height}` }}
+    >
+      <img
+        src={screen.src}
+        alt={`UniJourney ${screen.t} screen`}
+        className="absolute max-w-none"
+        style={{
+          width: `${(imageWidth / width) * 100}%`,
+          left: `${(-left / width) * 100}%`,
+          top: `${(-top / height) * 100}%`,
+        }}
+      />
+    </span>
+  );
+}
 
 const arrow = (
   <svg
@@ -130,7 +164,36 @@ const arrow = (
 );
 
 export function Landing() {
-  const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null);
+  const [zoom, setZoom] = useState<Screenshot | null>(null);
+  const gallery = useRef<HTMLElement>(null);
+  const screenshotRail = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const section = gallery.current;
+    if (!section || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.target instanceof HTMLElement) {
+            entry.target.setAttribute("data-visible", "true");
+            observer.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.25 },
+    );
+    section.querySelectorAll("[data-screenshot]").forEach((card) => observer.observe(card));
+    return () => observer.disconnect();
+  }, []);
+
+  function moveScreens(direction: number) {
+    const rail = screenshotRail.current;
+    if (!rail) return;
+    const first = rail.children[0];
+    const second = rail.children[1];
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) return;
+    rail.scrollBy({ left: direction * (second.offsetLeft - first.offsetLeft) });
+  }
 
   useEffect(() => {
     if (!zoom) return;
@@ -208,18 +271,14 @@ export function Landing() {
           </div>
 
           <div className="relative mx-auto w-full max-w-[300px]">
-            <div className="float-slow rounded-[2.6rem] border-[6px] border-ink bg-ink shadow-2xl">
+            <div className="float-slow overflow-hidden rounded-[2rem] border-4 border-ink bg-ink shadow-2xl">
               <button
                 type="button"
-                onClick={() => setZoom({ src: heroScreen, alt: "UniJourney dashboard screen" })}
+                onClick={() => setZoom(screens[0])}
                 aria-label="Enlarge dashboard screen"
-                className="block w-full cursor-zoom-in"
+                className="block w-full cursor-zoom-in focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
               >
-                <img
-                  src={heroScreen}
-                  alt="UniJourney dashboard screen"
-                  className="block w-full rounded-[2rem]"
-                />
+                <ScreenshotImage screen={screens[0]} />
               </button>
             </div>
             <div className="absolute -bottom-4 -left-8 rounded-2xl bg-ink p-4 text-ink-foreground shadow-xl">
@@ -291,31 +350,55 @@ export function Landing() {
         </ul>
       </section>
 
-      <section id="screens" className="mx-auto max-w-6xl px-6 py-24">
-        <h2 className="max-w-xl text-4xl font-semibold md:text-5xl">Inside the app</h2>
-        <p className="mt-4 max-w-xl text-lg text-muted-foreground">
-          Five core views keep your whole student life in one place.
-        </p>
-        <div className="mt-14 flex snap-x snap-mandatory gap-6 overflow-x-auto pb-4 lg:grid lg:grid-cols-5 lg:overflow-visible">
-          {screens.map((s) => (
-            <div key={s.t} className="w-[250px] shrink-0 snap-center lg:w-auto">
-              <div className="rounded-[1.9rem] border bg-card p-1.5 shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => setZoom({ src: s.src, alt: `UniJourney ${s.t} screen` })}
-                  aria-label={`Enlarge ${s.t} screen`}
-                  className="block w-full cursor-zoom-in transition-transform hover:scale-[1.02]"
+      <section id="screens" ref={gallery} className="mx-auto max-w-6xl px-6 py-14 md:py-20">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-3xl font-semibold md:text-5xl">Inside the app</h2>
+          <div className="flex gap-2 lg:hidden">
+            <button
+              type="button"
+              onClick={() => moveScreens(-1)}
+              aria-label="Previous screenshot"
+              className="grid size-10 place-items-center rounded-full border border-border bg-card text-primary hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <ChevronLeft className="size-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => moveScreens(1)}
+              aria-label="Next screenshot"
+              className="grid size-10 place-items-center rounded-full border border-border bg-card text-primary hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <ChevronRight className="size-5" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <div
+          ref={screenshotRail}
+          className="relative mt-5 flex snap-x snap-mandatory scroll-px-1 gap-3 overflow-x-auto px-1 pt-2 pb-3 motion-safe:scroll-smooth lg:mt-7 lg:grid lg:grid-cols-5 lg:gap-4 lg:overflow-visible"
+        >
+          {screens.map((screen) => (
+            <article
+              key={screen.t}
+              data-screenshot
+              className="w-[min(68vw,220px)] shrink-0 snap-start lg:w-auto"
+            >
+              <button
+                type="button"
+                onClick={() => setZoom(screen)}
+                aria-label={`Enlarge ${screen.t} screen`}
+                className="relative block w-full cursor-zoom-in overflow-hidden rounded-2xl border border-border bg-card shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-safe:transition-transform motion-safe:hover:-translate-y-1 [article[data-visible=true]_&]:motion-safe:animate-[screenshot-arrive_550ms_ease-out]"
+              >
+                <ScreenshotImage screen={screen} />
+                <span
+                  className="absolute right-2 bottom-2 grid size-8 place-items-center rounded-full border border-border bg-card text-primary shadow-sm"
+                  aria-hidden="true"
                 >
-                  <img
-                    src={s.src}
-                    alt={`UniJourney ${s.t} screen`}
-                    className="block w-full rounded-[1.5rem]"
-                  />
-                </button>
-              </div>
-              <h3 className="mt-5 text-xl font-semibold">{s.t}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{s.d}</p>
-            </div>
+                  <ZoomIn className="size-4" />
+                </span>
+              </button>
+              <h3 className="mt-2 text-lg font-semibold">{screen.t}</h3>
+              <p className="mt-1 text-sm leading-snug text-muted-foreground">{screen.d}</p>
+            </article>
           ))}
         </div>
 
@@ -408,7 +491,7 @@ export function Landing() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-6 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
-          aria-label={zoom.alt}
+          aria-label={`UniJourney ${zoom.t} screen`}
           onClick={() => setZoom(null)}
         >
           <button
@@ -429,12 +512,12 @@ export function Landing() {
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
-          <img
-            src={zoom.src}
-            alt={zoom.alt}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[85vh] max-w-full rounded-[2rem] bg-card p-2 shadow-2xl"
-          />
+          <div
+            onClick={(event) => event.stopPropagation()}
+            className="w-[min(100%,39dvh)] overflow-hidden rounded-xl border border-border shadow-2xl"
+          >
+            <ScreenshotImage screen={zoom} />
+          </div>
         </div>
       )}
     </div>
