@@ -1,13 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import {
-  Bell,
-  BellRing,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Link2,
-  MapPin,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, ExternalLink, Link2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -69,15 +61,10 @@ const copy = {
     prev: "Previous",
     next: "Next",
     weekShort: "Week",
-    nothing: "Nothing scheduled",
     moreEvents: (count: number) => `${count} more events`,
     allDay: "All day",
     open: "Open",
     openMaps: "Open in Google Maps",
-    setReminder: "Remind me",
-    removeReminder: "Remove reminder",
-    reminderOn: "Reminder on",
-    remindersSet: "reminders set",
     kinds: {
       lecture: "Lecture",
       seminar: "Seminar",
@@ -118,15 +105,10 @@ const copy = {
     prev: "Föregående",
     next: "Nästa",
     weekShort: "Vecka",
-    nothing: "Inget planerat",
     moreEvents: (count: number) => `${count} fler händelser`,
     allDay: "Heldag",
     open: "Öppna",
     openMaps: "Öppna i Google Maps",
-    setReminder: "Påminn mig",
-    removeReminder: "Ta bort påminnelse",
-    reminderOn: "Påminnelse på",
-    remindersSet: "påminnelser satta",
     kinds: {
       lecture: "Föreläsning",
       seminar: "Seminarium",
@@ -171,10 +153,9 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
   const c = copy[lang];
   const [view, setView] = useState<"week" | "month">("week");
   const todayKey = toKey(new Date());
-  const [monthDetails, setMonthDetails] = useState<{ date: string; eventId?: string }>();
-  const monthDetailsTrigger = useRef<HTMLButtonElement>(null);
+  const [dayDetails, setDayDetails] = useState<{ date: string; eventId?: string }>();
+  const dayDetailsTrigger = useRef<HTMLButtonElement>(null);
   const [cursor, setCursor] = useState(() => new Date());
-  const [reminders, setReminders] = useState<Set<string>>(new Set());
   const [connectOpen, setConnectOpen] = useState(false);
   const [link, setLink] = useState("");
   const [subscription, setSubscription] = useState<{ url: string; events: CalendarEvent[] }>();
@@ -205,14 +186,6 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
       setLoading(false);
     }
   }
-
-  const toggleReminder = (id: string) =>
-    setReminders((s) => {
-      const next = new Set(s);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
 
   const byDay = useMemo(() => {
     const m: Record<string, CalendarEvent[]> = {};
@@ -432,12 +405,6 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
           ))}
         </div>
         <div className="flex items-center gap-2">
-          {reminders.size > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
-              <BellRing className="size-3.5" />
-              {reminders.size} {c.remindersSet}
-            </span>
-          )}
           <Button
             size="sm"
             variant="outline"
@@ -494,42 +461,18 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
         </div>
 
         {view === "week" ? (
-          <ol className="divide-y divide-border">
-            {weekDays.map((d) => {
-              const key = toKey(d);
-              const list = byDay[key] ?? [];
-              return (
-                <li key={key} className="flex gap-2 py-2 sm:gap-3">
-                  <div
-                    className={cn(
-                      "flex w-10 shrink-0 flex-col items-center rounded-lg py-1",
-                      key === todayKey ? "bg-primary text-primary-foreground" : "text-foreground",
-                    )}
-                  >
-                    <span className="text-[10px] font-semibold uppercase opacity-80">
-                      {c.days[(d.getDay() + 6) % 7]}
-                    </span>
-                    <span className="text-base font-extrabold leading-tight">{d.getDate()}</span>
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    {list.length === 0 ? (
-                      <p className="pt-1 text-xs text-muted-foreground">{c.nothing}</p>
-                    ) : (
-                      list.map((e) => (
-                        <EventItem
-                          key={e.id}
-                          e={e}
-                          c={c}
-                          reminded={reminders.has(e.id)}
-                          onToggleReminder={() => toggleReminder(e.id)}
-                        />
-                      ))
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
+          <WeekTimeline
+            days={weekDays}
+            selectedKey={toKey(cursor)}
+            todayKey={todayKey}
+            byDay={byDay}
+            c={c}
+            onSelectDay={setCursor}
+            onOpenEvent={(event, trigger) => {
+              dayDetailsTrigger.current = trigger;
+              setDayDetails({ date: event.date, eventId: event.id });
+            }}
+          />
         ) : (
           <>
             <div className="grid grid-cols-7 text-center text-[10px] font-bold uppercase text-muted-foreground sm:text-xs">
@@ -583,8 +526,8 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
                               type="button"
                               title={event.title}
                               onClick={(click) => {
-                                monthDetailsTrigger.current = click.currentTarget;
-                                setMonthDetails({ date: key, eventId: event.id });
+                                dayDetailsTrigger.current = click.currentTarget;
+                                setDayDetails({ date: key, eventId: event.id });
                               }}
                               className={cn(
                                 "block min-h-6 w-full touch-manipulation truncate rounded-sm px-0.5 py-0.5 text-left text-[10px] font-semibold leading-tight hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ring sm:rounded-md sm:px-1.5 sm:text-xs",
@@ -604,8 +547,8 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
                               type="button"
                               aria-label={c.moreEvents(extraCount)}
                               onClick={(click) => {
-                                monthDetailsTrigger.current = click.currentTarget;
-                                setMonthDetails({ date: key });
+                                dayDetailsTrigger.current = click.currentTarget;
+                                setDayDetails({ date: key });
                               }}
                               className="block min-h-6 w-full touch-manipulation rounded-sm text-center text-[10px] font-semibold text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring sm:text-xs"
                             >
@@ -619,64 +562,258 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
                 );
               })}
             </ol>
-            <Dialog
-              open={Boolean(monthDetails)}
-              onOpenChange={(open) => {
-                if (!open) setMonthDetails(undefined);
-              }}
-            >
-              {monthDetails && (
-                <DialogContent
-                  aria-describedby={undefined}
-                  className="max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-2rem)] overflow-y-auto overscroll-contain rounded-2xl p-4 sm:p-6"
-                  onCloseAutoFocus={(event) => {
-                    event.preventDefault();
-                    monthDetailsTrigger.current?.focus();
-                  }}
-                >
-                  <DialogTitle className="pr-6 capitalize">
-                    {fmt(fromKey(monthDetails.date), {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                    })}
-                  </DialogTitle>
-                  <div className="space-y-2">
-                    {byDay[monthDetails.date]
-                      ?.filter(
-                        (event) => !monthDetails.eventId || event.id === monthDetails.eventId,
-                      )
-                      .map((event) => (
-                        <EventItem
-                          key={event.id}
-                          e={event}
-                          c={c}
-                          reminded={reminders.has(event.id)}
-                          onToggleReminder={() => toggleReminder(event.id)}
-                        />
-                      ))}
-                  </div>
-                </DialogContent>
-              )}
-            </Dialog>
           </>
         )}
       </div>
+      <Dialog
+        open={Boolean(dayDetails)}
+        onOpenChange={(open) => {
+          if (!open) setDayDetails(undefined);
+        }}
+      >
+        {dayDetails && (
+          <DialogContent
+            aria-describedby={undefined}
+            className="max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-2rem)] overflow-y-auto overscroll-contain rounded-2xl p-4 sm:p-6"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              dayDetailsTrigger.current?.focus();
+            }}
+          >
+            <DialogTitle className="pr-6 capitalize">
+              {fmt(fromKey(dayDetails.date), {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}
+            </DialogTitle>
+            <div className="space-y-2">
+              {byDay[dayDetails.date]
+                ?.filter((event) => !dayDetails.eventId || event.id === dayDetails.eventId)
+                .map((event) => (
+                  <EventItem key={event.id} e={event} c={c} />
+                ))}
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </section>
   );
 }
 
-function EventItem({
-  e,
+const minutes = (clock: string) => {
+  const [hour = 0, minute = 0] = clock.split(":").map(Number);
+  return hour * 60 + minute;
+};
+
+function positionEvents(events: CalendarEvent[]) {
+  const timed = events
+    .filter((event) => event.start || event.end)
+    .map((event) => {
+      const start = event.start ? minutes(event.start) : 0;
+      const end = event.end ? minutes(event.end) : start + 60;
+      return { event, start, end: Math.min(1440, Math.max(start + 20, end)) };
+    })
+    .sort((a, b) => a.start - b.start);
+
+  // Each group of overlapping events shares the available column width.
+  const groups: { events: ((typeof timed)[number] & { lane: number })[]; ends: number[] }[] = [];
+  let group: (typeof groups)[number] | undefined;
+  let groupEnd = 0;
+  for (const slot of timed) {
+    if (!group || slot.start >= groupEnd) {
+      group = { events: [], ends: [] };
+      groups.push(group);
+      groupEnd = 0;
+    }
+    const freeLane = group.ends.findIndex((end) => end <= slot.start);
+    const lane = freeLane === -1 ? group.ends.length : freeLane;
+    group.ends[lane] = slot.end;
+    group.events.push({ ...slot, lane });
+    groupEnd = Math.max(groupEnd, slot.end);
+  }
+  return groups.flatMap(({ events, ends }) =>
+    events.map((slot) => ({ ...slot, lanes: ends.length })),
+  );
+}
+
+function WeekTimeline({
+  days,
+  selectedKey,
+  todayKey,
+  byDay,
   c,
-  reminded,
-  onToggleReminder,
+  onSelectDay,
+  onOpenEvent,
 }: {
-  e: CalendarEvent;
+  days: Date[];
+  selectedKey: string;
+  todayKey: string;
+  byDay: Record<string, CalendarEvent[]>;
   c: (typeof copy)[Lang];
-  reminded: boolean;
-  onToggleReminder: () => void;
+  onSelectDay: (day: Date) => void;
+  onOpenEvent: (event: CalendarEvent, trigger: HTMLButtonElement) => void;
 }) {
+  const viewport = useRef<HTMLDivElement>(null);
+  const columns = days.map((date) => {
+    const key = toKey(date);
+    const events = byDay[key] ?? [];
+    return {
+      date,
+      key,
+      allDay: events.filter((event) => !event.start && !event.end),
+      timed: positionEvents(events),
+    };
+  });
+  const slots = columns.flatMap((column) => column.timed);
+  const startHour = Math.floor(Math.min(7 * 60, ...slots.map((slot) => slot.start)) / 60);
+  const endHour = Math.ceil(Math.max(22 * 60, ...slots.map((slot) => slot.end)) / 60);
+  const hours = Array.from({ length: endHour - startHour }, (_, index) => startHour + index);
+  const duration = hours.length * 60;
+  const showAllDay = columns.some((column) => column.allDay.length > 0);
+
+  useEffect(() => {
+    const scroller = viewport.current;
+    const first = scroller?.querySelector<HTMLElement>("[data-day]");
+    const selected = scroller?.querySelector<HTMLElement>(`[data-day="${selectedKey}"]`);
+    if (scroller && first && selected) {
+      scroller.scrollLeft = selected.offsetLeft - first.offsetLeft;
+    }
+  }, [selectedKey]);
+
+  return (
+    <div className="@container">
+      <div className="mb-2 grid grid-cols-7 gap-0.5">
+        {columns.map(({ date, key }, index) => (
+          <button
+            key={key}
+            type="button"
+            aria-current={key === todayKey ? "date" : undefined}
+            aria-pressed={key === selectedKey}
+            onClick={() => onSelectDay(date)}
+            className={cn(
+              "flex min-w-0 flex-col items-center rounded-lg py-1 text-xs focus-visible:outline-2 focus-visible:outline-ring",
+              key === selectedKey ? "bg-secondary" : "hover:bg-secondary/50",
+            )}
+          >
+            <span className="text-muted-foreground">{c.days[index]}</span>
+            <span
+              className={cn(
+                "grid size-6 place-items-center rounded-full text-sm font-bold",
+                key === todayKey && "bg-primary text-primary-foreground",
+              )}
+            >
+              {date.getDate()}
+            </span>
+          </button>
+        ))}
+      </div>
+      <div
+        ref={viewport}
+        role="region"
+        aria-label={c.week}
+        tabIndex={0}
+        className="relative max-h-[65dvh] overflow-auto rounded-xl border border-border focus-visible:outline-2 focus-visible:outline-ring"
+      >
+        <div className="grid grid-cols-[3rem_repeat(7,minmax(0,1fr))] [--hour-height:3.5rem] w-[calc(350%-7.5rem)] @xl:w-[calc(175%-2.25rem)] @4xl:w-full">
+          <div className="sticky top-0 left-0 z-30 flex items-end justify-end border-b border-border bg-card px-1 pb-1 text-right text-[10px] text-muted-foreground">
+            {showAllDay && c.allDay}
+          </div>
+          {columns.map(({ date, key, allDay }) => (
+            <div
+              key={key}
+              data-day={key}
+              className="sticky top-0 z-20 min-w-0 border-b border-l border-border bg-card"
+            >
+              <time
+                dateTime={key}
+                className={cn(
+                  "flex min-h-9 items-center justify-center px-1 text-center text-xs font-bold capitalize",
+                  key === todayKey && "text-primary",
+                )}
+              >
+                {date.toLocaleDateString(c.locale, { weekday: "short", day: "numeric" })}
+              </time>
+              {showAllDay && (
+                <div className="space-y-1 border-t border-border p-1">
+                  {allDay.map((event) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={(click) => onOpenEvent(event, click.currentTarget)}
+                      className={cn(
+                        "block min-h-7 w-full truncate rounded-md px-1.5 text-left text-xs font-semibold focus-visible:outline-2 focus-visible:outline-ring",
+                        event.kind ? kindStyle[event.kind].chip : "bg-secondary text-foreground",
+                      )}
+                      title={event.title}
+                    >
+                      {event.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="sticky left-0 z-10 bg-card">
+            {hours.map((hour) => (
+              <div
+                key={hour}
+                className="h-(--hour-height) border-b border-border/60 pr-1.5 pt-0.5 text-right text-[10px] text-muted-foreground tabular-nums"
+              >
+                {pad(hour)}:00
+              </div>
+            ))}
+          </div>
+          {columns.map(({ key, timed }) => (
+            <div
+              key={key}
+              className={cn("relative border-l border-border", key === todayKey && "bg-primary/5")}
+            >
+              <div aria-hidden="true">
+                {hours.map((hour) => (
+                  <div key={hour} className="h-(--hour-height) border-b border-border/60" />
+                ))}
+              </div>
+              {timed.map(({ event, start, end, lane, lanes }) => (
+                <div
+                  key={event.id}
+                  className="absolute px-0.5"
+                  style={{
+                    top: `${((start - startHour * 60) / duration) * 100}%`,
+                    height: `${((end - start) / duration) * 100}%`,
+                    left: `${(lane / lanes) * 100}%`,
+                    width: `${100 / lanes}%`,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={(click) => onOpenEvent(event, click.currentTarget)}
+                    title={event.title}
+                    className={cn(
+                      "flex h-full w-full flex-col items-start overflow-hidden rounded-md border-l-2 px-1 text-left text-xs leading-tight font-semibold hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+                      event.kind ? kindStyle[event.kind].chip : "bg-secondary text-foreground",
+                      end - start >= 30 && "py-0.5",
+                    )}
+                  >
+                    <span className="line-clamp-2 wrap-anywhere">{event.title}</span>
+                    {end - start >= 60 && (
+                      <span className="max-w-full truncate text-[10px] font-medium">
+                        {event.start ?? "00:00"}
+                        {event.end && `–${event.end}`}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventItem({ e, c }: { e: CalendarEvent; c: (typeof copy)[Lang] }) {
   const mapsHref = e.location ? mapsUrl(e.location) : undefined;
   const body = (
     <>
@@ -695,26 +832,6 @@ function EventItem({
           {e.start && e.end ? `${e.start}–${e.end}` : (e.start ?? e.end ?? c.allDay)}
         </span>
         {e.code && <span className="text-xs text-muted-foreground">· {e.code}</span>}
-        {reminded && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-bold text-primary">
-            <BellRing className="size-3" /> {c.reminderOn}
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={onToggleReminder}
-          aria-pressed={reminded}
-          aria-label={reminded ? c.removeReminder : c.setReminder}
-          title={reminded ? c.removeReminder : c.setReminder}
-          className={cn(
-            "ml-auto inline-flex size-10 shrink-0 items-center sm:size-8 justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            reminded
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-          )}
-        >
-          {reminded ? <BellRing className="size-3.5" /> : <Bell className="size-3.5" />}
-        </button>
       </div>
       <p className="mt-0.5 text-[13px] font-semibold leading-snug text-foreground">{e.title}</p>
       {e.description && (
