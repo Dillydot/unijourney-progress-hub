@@ -31,7 +31,12 @@ import {
   type ProgrammePlan,
 } from "@/lib/kth";
 import { buildNotifications } from "@/lib/notifications";
-import { getKthExamPeriods, getKthPlan, getLatestKthNews } from "@/lib/kth-api";
+import {
+  getKthExamPeriods,
+  getKthPlan,
+  getKthProgrammeTerms,
+  getLatestKthNews,
+} from "@/lib/kth-api";
 import { kthNewsArchive } from "@/lib/kth-news";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -167,7 +172,15 @@ export function Dashboard({
     useState<Record<NotificationPrefKey, boolean>>(defaultNotificationPrefs);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [programmeSelection, setProgrammeSelection] = useState(emptyProgrammeSelection);
-  const { programme: profileProgramme, school, degree, cohort } = programmeSelection;
+  const { programme: profileProgramme, school, degree } = programmeSelection;
+  const selectedCode = profileProgramme?.code ?? "";
+  const programmeCohorts = useQuery({
+    queryKey: ["kth-programme-terms", selectedCode],
+    queryFn: () => getKthProgrammeTerms({ data: selectedCode }),
+    enabled: Boolean(selectedCode),
+    staleTime: 12 * 60 * 60 * 1000,
+  });
+  const cohort = programmeCohorts.data?.[0] ?? "";
   const profileProgrammeName =
     lang === "sv" ? profileProgramme?.titleSv || profileProgramme?.title : profileProgramme?.title;
   const profileDegree = degreeLabels[degree]?.[lang] ?? degree;
@@ -256,7 +269,9 @@ export function Dashboard({
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-brand sm:size-10">
                 <GraduationCap className="size-5" aria-hidden="true" />
               </span>
-              <span className="truncate font-display text-base font-bold sm:text-xl">UniJourney</span>
+              <span className="truncate font-display text-base font-bold sm:text-xl">
+                UniJourney
+              </span>
             </button>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
@@ -646,6 +661,11 @@ export function Dashboard({
             myCodes={view.courseCodes}
             demo={demo}
             selection={programmeSelection}
+            latestCohort={{
+              term: cohort,
+              loading: programmeCohorts.isLoading,
+              failed: programmeCohorts.isError,
+            }}
             setSelection={setProgrammeSelection}
           />
         )}

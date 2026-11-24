@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { getKthPlan, getKthProgrammes, getKthProgrammeTerms } from "@/lib/kth-api";
+import { getKthPlan, getKthProgrammes } from "@/lib/kth-api";
 import { cn } from "@/lib/utils";
 import { kthSyllabusUrl } from "@/lib/kth-programmes";
 import { useQuery } from "@tanstack/react-query";
@@ -63,14 +63,12 @@ export type ProgrammeSelection = {
   degree: string;
   school: string;
   programme: { code: string; title: string; titleSv: string } | null;
-  cohort: string;
 };
 
 export const emptyProgrammeSelection: ProgrammeSelection = {
   degree: "",
   school: "",
   programme: null,
-  cohort: "",
 };
 
 export function PlanScreen({
@@ -85,6 +83,7 @@ export function PlanScreen({
   myCodes,
   demo,
   selection,
+  latestCohort,
   setSelection,
 }: {
   lang: Lang;
@@ -98,13 +97,14 @@ export function PlanScreen({
   myCodes: string[];
   demo: boolean;
   selection: ProgrammeSelection;
+  latestCohort: { term: string; loading: boolean; failed: boolean };
   setSelection: Dispatch<SetStateAction<ProgrammeSelection>>;
 }) {
   const [browserOpen, setBrowserOpen] = useState(false);
   const [draft, setDraft] = useState(selection);
   const { degree, school } = draft;
   const draftCode = draft.programme?.code ?? "";
-  const { programme: selectedProgramme, cohort } = selection;
+  const { programme: selectedProgramme } = selection;
   const code = selectedProgramme?.code ?? "";
   const catalogue = useQuery({
     queryKey: ["kth-programmes"],
@@ -123,23 +123,7 @@ export function PlanScreen({
   const nameOf = (programme: NonNullable<ProgrammeSelection["programme"]>) =>
     (lang === "sv" ? programme.titleSv : programme.title) || programme.title;
 
-  const cohorts = useQuery({
-    queryKey: ["kth-programme-terms", code],
-    queryFn: () => getKthProgrammeTerms({ data: code }),
-    enabled: Boolean(code),
-    staleTime: 12 * 60 * 60 * 1000,
-  });
-  const draftCohorts = useQuery({
-    queryKey: ["kth-programme-terms", draftCode],
-    queryFn: () => getKthProgrammeTerms({ data: draftCode }),
-    enabled: browserOpen && Boolean(draftCode),
-    staleTime: 12 * 60 * 60 * 1000,
-  });
-  const now = new Date();
-  const currentTerm = `${now.getFullYear()}${now.getMonth() < 7 ? "1" : "2"}`;
-  const defaultCohort = (terms: string[] | undefined) =>
-    terms?.find((value) => value <= currentTerm) ?? terms?.[0] ?? "";
-  const term = cohort || defaultCohort(cohorts.data);
+  const { term } = latestCohort;
   const selectedPlan = useQuery({
     queryKey: ["kth-programme-structure", code, term],
     queryFn: () => getKthPlan({ data: { programmeCode: code, term, includeDetails: false } }),
@@ -148,8 +132,8 @@ export function PlanScreen({
   });
 
   const plan = code ? selectedPlan.data : homePlan;
-  const loading = code ? cohorts.isLoading || selectedPlan.isLoading : homeLoading;
-  const failed = code ? cohorts.isError || selectedPlan.isError : homeFailed;
+  const loading = code ? latestCohort.loading || selectedPlan.isLoading : homeLoading;
+  const failed = code ? latestCohort.failed || selectedPlan.isError : homeFailed;
   const syllabusCode = code || (!demo && programmeCode !== "—" ? programmeCode : "");
   const syllabusTerm = code ? term : programmeTerm;
 
@@ -272,6 +256,7 @@ export function PlanScreen({
                 })}
               </ProgrammeSelect>
               <ProgrammeSelect
+                className="sm:col-span-2"
                 label={t.programme}
                 value={draftCode}
                 placeholder={t.chooseProgramme}
@@ -282,7 +267,6 @@ export function PlanScreen({
                     school,
                     programme:
                       programmeOptions.find((programme) => programme.code === value) ?? null,
-                    cohort: "",
                   })
                 }
               >
@@ -293,19 +277,6 @@ export function PlanScreen({
                       {nameOf(programme)} ({programme.code})
                     </option>
                   ))}
-              </ProgrammeSelect>
-              <ProgrammeSelect
-                label={t.admissionCohort}
-                value={draft.cohort || defaultCohort(draftCohorts.data)}
-                placeholder={t.chooseCohort}
-                disabled={!draftCohorts.data?.length}
-                onChange={(value) => setDraft((current) => ({ ...current, cohort: value }))}
-              >
-                {draftCohorts.data?.map((value) => (
-                  <option key={value} value={value}>
-                    {value.endsWith("2") ? t.autumnSemester : t.springSemester} {value.slice(0, 4)}
-                  </option>
-                ))}
               </ProgrammeSelect>
             </div>
             {catalogue.isLoading && (
@@ -626,6 +597,7 @@ export function PlanScreen({
 }
 
 function ProgrammeSelect({
+  className,
   label,
   value,
   placeholder,
@@ -633,6 +605,7 @@ function ProgrammeSelect({
   onChange,
   children,
 }: {
+  className?: string;
   label: string;
   value: string;
   placeholder: string;
@@ -641,7 +614,7 @@ function ProgrammeSelect({
   children: React.ReactNode;
 }) {
   return (
-    <label className="min-w-0 space-y-1.5 text-xs font-semibold">
+    <label className={cn("min-w-0 space-y-1.5 text-xs font-semibold", className)}>
       <span className="block">{label}</span>
       <select
         className="h-11 w-full min-w-0 truncate rounded-lg border border-border bg-background px-2 text-base md:text-sm focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
