@@ -167,14 +167,14 @@ export function NewsScreen({
         </p>
       )}
       {items.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-2 gap-2.5 sm:gap-4">
           {items.map((story) => (
             <li key={story.url} className="min-w-0">
               <a
                 href={story.url}
                 target="_blank"
                 rel="noreferrer"
-                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-primary"
+                className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-colors hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-primary"
               >
                 {story.image && (
                   <img
@@ -182,17 +182,17 @@ export function NewsScreen({
                     alt=""
                     loading="lazy"
                     decoding="async"
-                    className="aspect-video w-full bg-secondary object-cover"
+                    className="h-20 w-full bg-secondary object-cover sm:h-32"
                   />
                 )}
-                <div className="flex flex-1 flex-col gap-2 p-4">
+                <div className="flex flex-1 flex-col gap-1.5 p-2.5 sm:p-3">
                   {story.date && <p className="text-xs text-muted-foreground">{story.date}</p>}
-                  <h2 className="text-base leading-snug font-bold group-hover:underline">
+                  <h2 className="text-sm leading-snug font-bold wrap-break-word group-hover:underline sm:text-base">
                     {story.title}
                   </h2>
-                  <span className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                  <span className="mt-auto inline-flex items-center gap-1 pt-1 text-xs font-semibold text-primary">
                     {c.read}
-                    <ExternalLink className="size-3.5" aria-hidden="true" />
+                    <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
                   </span>
                 </div>
               </a>
