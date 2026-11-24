@@ -457,7 +457,7 @@ export function Landing() {
                   aria-label={`Connect with ${member.name} on LinkedIn`}
                   className="group grid h-full grid-cols-[minmax(0,2fr)_minmax(0,3fr)] overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary md:flex md:flex-col"
                 >
-                  <div className="relative min-h-32 overflow-hidden bg-secondary md:aspect-[4/3]">
+                  <div className="grid min-h-32 place-items-center bg-secondary/60 px-2 py-4 md:py-8">
                     <img
                       src={member.src}
                       alt=""
@@ -465,7 +465,7 @@ export function Landing() {
                       height={800}
                       loading="lazy"
                       decoding="async"
-                      className="absolute inset-0 size-full object-cover object-[center_35%] motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-hover:scale-105"
+                      className="aspect-square w-full max-w-24 rounded-full object-cover ring-2 ring-card motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-hover:scale-105 md:max-w-40"
                     />
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5 p-4 md:p-5">
