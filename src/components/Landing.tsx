@@ -247,7 +247,7 @@ export function Landing() {
               Prototype live
             </span>
             <h1 className="mt-6 text-5xl font-semibold leading-[1.05] md:text-7xl">
-              Your university years, <em className="text-primary">mapped out.</em>
+              Your university journey, <em className="text-primary">mapped out.</em>
             </h1>
             <p className="mt-6 max-w-md text-lg text-muted-foreground">
               UniJourney helps students organize their studies, keep up with deadlines and track
