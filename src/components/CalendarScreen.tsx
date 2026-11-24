@@ -208,7 +208,6 @@ export function CalendarScreen({
     : [];
 
   const weekStart = startOfWeek(cursor);
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const shift = (dir: number) => setCursor((d) => addDays(d, dir * 7));
   const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString(c.locale, o);
   const heading = `${c.weekShort} ${isoWeek(weekStart)} · ${fmt(weekStart, { day: "numeric", month: "short" })} – ${fmt(addDays(weekStart, 6), { day: "numeric", month: "short", year: "numeric" })}`;
@@ -451,12 +450,13 @@ export function CalendarScreen({
               </Button>
             </div>
 
-            <WeekTimeline
-              days={weekDays}
+            <WeekScroller
+              weekStart={weekStart}
               todayKey={todayKey}
               byDay={byDay}
               c={c}
               onOpenDay={openDay}
+              onShift={shift}
             />
           </>
         ) : (
@@ -730,6 +730,65 @@ function positionEvents(events: CalendarEvent[]) {
   }
   return groups.flatMap(({ events, ends }) =>
     events.map((slot) => ({ ...slot, lanes: ends.length })),
+  );
+}
+
+function WeekScroller({
+  weekStart,
+  onShift,
+  ...timelineProps
+}: Omit<Parameters<typeof WeekTimeline>[0], "days"> & {
+  weekStart: Date;
+  onShift: (direction: number) => void;
+}) {
+  const viewport = useRef<HTMLDivElement>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const weekKey = toKey(weekStart);
+
+  useLayoutEffect(() => {
+    const scroller = viewport.current;
+    if (!scroller) return;
+
+    // Recenter after navigation and when a previously hidden Calendar tab becomes visible.
+    function center() {
+      if (!scroller) return;
+      clearTimeout(settleTimer.current);
+      scroller.scrollLeft = scroller.clientWidth;
+    }
+
+    center();
+    const observer = new ResizeObserver(center);
+    observer.observe(scroller);
+    return () => {
+      observer.disconnect();
+      clearTimeout(settleTimer.current);
+    };
+  }, [weekKey]);
+
+  return (
+    <div
+      ref={viewport}
+      className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      onScroll={(event) => {
+        const scroller = event.currentTarget;
+        clearTimeout(settleTimer.current);
+        settleTimer.current = setTimeout(() => {
+          const width = scroller.clientWidth;
+          if (!width) return;
+          if (scroller.scrollLeft <= 1) onShift(-1);
+          else if (scroller.scrollLeft >= scroller.scrollWidth - width - 1) onShift(1);
+        }, 120);
+      }}
+    >
+      {[-1, 0, 1].map((offset) => (
+        <div key={offset} inert={offset !== 0} className="flex min-h-0 w-full shrink-0 snap-start">
+          <WeekTimeline
+            {...timelineProps}
+            days={Array.from({ length: 7 }, (_, day) => addDays(weekStart, offset * 7 + day))}
+          />
+        </div>
+      ))}
+    </div>
   );
 }
 
