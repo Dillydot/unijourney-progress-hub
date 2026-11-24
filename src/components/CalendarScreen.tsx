@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, Link2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -199,24 +199,14 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
 
   const weekStart = startOfWeek(cursor);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const monthFirst = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-  const gridStart = startOfWeek(monthFirst);
-  const monthLength = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
-  const leadingDays = (monthFirst.getDay() + 6) % 7;
-  const monthDays = Array.from({ length: Math.ceil((leadingDays + monthLength) / 7) * 7 }, (_, i) =>
-    addDays(gridStart, i),
-  );
-
-  const shift = (dir: number) =>
-    setCursor((d) =>
-      view === "week" ? addDays(d, dir * 7) : new Date(d.getFullYear(), d.getMonth() + dir, 1),
-    );
-
+  const shift = (dir: number) => setCursor((d) => addDays(d, dir * 7));
   const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString(c.locale, o);
-  const heading =
-    view === "week"
-      ? `${c.weekShort} ${isoWeek(weekStart)} · ${fmt(weekStart, { day: "numeric", month: "short" })} – ${fmt(addDays(weekStart, 6), { day: "numeric", month: "short", year: "numeric" })}`
-      : fmt(monthFirst, { month: "long", year: "numeric" });
+  const heading = `${c.weekShort} ${isoWeek(weekStart)} · ${fmt(weekStart, { day: "numeric", month: "short" })} – ${fmt(addDays(weekStart, 6), { day: "numeric", month: "short", year: "numeric" })}`;
+
+  function openDay(trigger: HTMLButtonElement, date: string, eventId?: string) {
+    dayDetailsTrigger.current = trigger;
+    setDayDetails(eventId === undefined ? { date } : { date, eventId });
+  }
 
   return (
     <section id="calendar" className="space-y-3">
@@ -433,136 +423,52 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
       <div
         className={cn(
           "rounded-2xl border border-border bg-card shadow-sm",
-          view === "week" ? "p-2 sm:p-3" : "py-2",
+          view === "week" ? "p-2 sm:p-3" : "overflow-hidden",
         )}
       >
-        <div
-          className={cn("mb-2 flex items-center justify-between gap-2", view === "month" && "px-2")}
-        >
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-11 rounded-full sm:size-9"
-            aria-label={c.prev}
-            onClick={() => shift(-1)}
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <p className="text-center text-sm font-bold capitalize text-foreground">{heading}</p>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-11 rounded-full sm:size-9"
-            aria-label={c.next}
-            onClick={() => shift(1)}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-
         {view === "week" ? (
-          <WeekTimeline
-            days={weekDays}
-            selectedKey={toKey(cursor)}
+          <>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-11 rounded-full sm:size-9"
+                aria-label={c.prev}
+                onClick={() => shift(-1)}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <p className="text-center text-sm font-bold capitalize text-foreground">{heading}</p>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-11 rounded-full sm:size-9"
+                aria-label={c.next}
+                onClick={() => shift(1)}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+
+            <WeekTimeline
+              days={weekDays}
+              selectedKey={toKey(cursor)}
+              todayKey={todayKey}
+              byDay={byDay}
+              c={c}
+              onSelectDay={setCursor}
+              onOpenEvent={(event, trigger) => openDay(trigger, event.date, event.id)}
+            />
+          </>
+        ) : (
+          <MonthTimeline
+            key={cursor.getTime()}
+            cursor={cursor}
             todayKey={todayKey}
             byDay={byDay}
             c={c}
-            onSelectDay={setCursor}
-            onOpenEvent={(event, trigger) => {
-              dayDetailsTrigger.current = trigger;
-              setDayDetails({ date: event.date, eventId: event.id });
-            }}
+            onOpenDay={openDay}
           />
-        ) : (
-          <>
-            <div className="grid grid-cols-7 text-center text-[10px] font-bold uppercase text-muted-foreground sm:text-xs">
-              {c.days.map((day) => (
-                <span key={day} className="py-2">
-                  <span className="sm:hidden" aria-hidden="true">
-                    {day.slice(0, 1)}
-                  </span>
-                  <span className="sr-only sm:not-sr-only">{day}</span>
-                </span>
-              ))}
-            </div>
-            <ol className="grid grid-cols-7">
-              {monthDays.map((date) => {
-                const key = toKey(date);
-                const inMonth = date.getMonth() === monthFirst.getMonth();
-                const events = inMonth ? (byDay[key] ?? []) : [];
-                const extraCount = events.length - 3;
-                return (
-                  <li
-                    key={key}
-                    className="min-h-26 min-w-0 border-t border-border px-0.5 py-1.5 sm:min-h-28 sm:px-1.5 sm:py-2"
-                  >
-                    {inMonth && (
-                      <>
-                        <time
-                          dateTime={key}
-                          aria-current={key === todayKey ? "date" : undefined}
-                          className="mb-1.5 flex justify-center"
-                        >
-                          <span className="sr-only">
-                            {fmt(date, { weekday: "long", day: "numeric", month: "long" })}
-                          </span>
-                          <span
-                            aria-hidden="true"
-                            className={cn(
-                              "grid size-6 place-items-center rounded-full text-sm font-bold sm:size-8 sm:text-base",
-                              key === todayKey
-                                ? "bg-primary text-primary-foreground"
-                                : (date.getDay() === 0 || date.getDay() === 6) &&
-                                    "text-muted-foreground",
-                            )}
-                          >
-                            {date.getDate()}
-                          </span>
-                        </time>
-                        <div className="space-y-0.5">
-                          {events.slice(0, 3).map((event) => (
-                            <button
-                              key={event.id}
-                              type="button"
-                              title={event.title}
-                              onClick={(click) => {
-                                dayDetailsTrigger.current = click.currentTarget;
-                                setDayDetails({ date: key, eventId: event.id });
-                              }}
-                              className={cn(
-                                "block min-h-6 w-full touch-manipulation truncate rounded-sm px-0.5 py-0.5 text-left text-[10px] font-semibold leading-tight hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ring sm:rounded-md sm:px-1.5 sm:text-xs",
-                                event.kind
-                                  ? kindStyle[event.kind].chip
-                                  : "bg-secondary text-foreground",
-                              )}
-                            >
-                              <span className="hidden sm:inline">
-                                {event.start ? `${event.start} ` : ""}
-                              </span>
-                              {event.title}
-                            </button>
-                          ))}
-                          {extraCount > 0 && (
-                            <button
-                              type="button"
-                              aria-label={c.moreEvents(extraCount)}
-                              onClick={(click) => {
-                                dayDetailsTrigger.current = click.currentTarget;
-                                setDayDetails({ date: key });
-                              }}
-                              className="block min-h-6 w-full touch-manipulation rounded-sm text-center text-[10px] font-semibold text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring sm:text-xs"
-                            >
-                              +{extraCount}
-                            </button>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-          </>
         )}
       </div>
       <Dialog
@@ -598,6 +504,170 @@ export function CalendarScreen({ lang, events }: { lang: Lang; events: CalendarE
         )}
       </Dialog>
     </section>
+  );
+}
+
+function MonthTimeline({
+  cursor,
+  todayKey,
+  byDay,
+  c,
+  onOpenDay,
+}: {
+  cursor: Date;
+  todayKey: string;
+  byDay: Record<string, CalendarEvent[]>;
+  c: (typeof copy)[Lang];
+  onOpenDay: (trigger: HTMLButtonElement, date: string, eventId?: string) => void;
+}) {
+  const viewport = useRef<HTMLDivElement>(null);
+  const weekdays = useRef<HTMLDivElement>(null);
+  const initialDay = useRef<HTMLLIElement>(null);
+  const prepend = useRef<{ month: HTMLElement; offset: number }>(null);
+  const [{ first, last }, setRange] = useState({ first: -2, last: 2 });
+
+  useLayoutEffect(() => {
+    const scroller = viewport.current;
+    const day = initialDay.current;
+    const monthHeading = day?.closest("section")?.querySelector("h2");
+    if (scroller && day && monthHeading && weekdays.current) {
+      scroller.scrollTop =
+        day.offsetTop - monthHeading.offsetHeight - weekdays.current.offsetHeight;
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    const scroller = viewport.current;
+    if (scroller && prepend.current) {
+      const { month, offset } = prepend.current;
+      prepend.current = null;
+      scroller.scrollTop += month.offsetTop - offset;
+    }
+  }, [first]);
+
+  function extendRange(scroller: HTMLDivElement) {
+    const { scrollTop, scrollHeight, clientHeight } = scroller;
+    const firstMonth = scroller.querySelector("section");
+    if (scrollTop < clientHeight && !prepend.current && firstMonth) {
+      prepend.current = { month: firstMonth, offset: firstMonth.offsetTop };
+      setRange((range) => ({ ...range, first: range.first - 3 }));
+    } else if (scrollHeight - scrollTop - clientHeight < clientHeight) {
+      setRange((range) => ({ ...range, last: Math.max(range.last, last + 3) }));
+    }
+  }
+
+  return (
+    <div
+      ref={viewport}
+      role="region"
+      aria-label={c.month}
+      tabIndex={0}
+      onScroll={(event) => extendRange(event.currentTarget)}
+      className="relative max-h-[65dvh] overflow-y-auto [overflow-anchor:none] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+    >
+      <div
+        ref={weekdays}
+        className="sticky top-0 z-20 grid h-8 grid-cols-7 items-center border-b border-border bg-card text-center text-[10px] font-bold uppercase text-muted-foreground sm:text-xs"
+      >
+        {c.days.map((day) => (
+          <span key={day}>
+            <span className="sm:hidden" aria-hidden="true">
+              {day.slice(0, 1)}
+            </span>
+            <span className="sr-only sm:not-sr-only">{day}</span>
+          </span>
+        ))}
+      </div>
+      {Array.from({ length: last - first + 1 }, (_, index) => {
+        const offset = first + index;
+        const month = new Date(cursor.getFullYear(), cursor.getMonth() + offset, 1);
+        const leadingDays = (month.getDay() + 6) % 7;
+        const monthLength = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+        const monthDays = Array.from({ length: monthLength }, (_, day) => addDays(month, day));
+
+        return (
+          <section key={offset}>
+            <h2 className="sticky top-8 z-10 border-b border-border bg-card px-3 py-2 text-base font-bold capitalize">
+              {month.toLocaleDateString(c.locale, { month: "long", year: "numeric" })}
+            </h2>
+            <ol className="grid grid-cols-7">
+              {monthDays.map((date, index) => {
+                const key = toKey(date);
+                const events = byDay[key] ?? [];
+                const extraCount = events.length - 3;
+                return (
+                  <li
+                    key={key}
+                    ref={
+                      offset === 0 && date.getDate() === cursor.getDate() ? initialDay : undefined
+                    }
+                    style={index === 0 ? { gridColumnStart: leadingDays + 1 } : undefined}
+                    className="min-h-26 min-w-0 border-t border-border px-0.5 py-1.5 sm:min-h-28 sm:px-1.5 sm:py-2"
+                  >
+                    <time
+                      dateTime={key}
+                      aria-current={key === todayKey ? "date" : undefined}
+                      className="mb-1.5 flex justify-center"
+                    >
+                      <span className="sr-only">
+                        {date.toLocaleDateString(c.locale, {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                        })}
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "grid size-6 place-items-center rounded-full text-sm font-bold sm:size-8 sm:text-base",
+                          key === todayKey
+                            ? "bg-primary text-primary-foreground"
+                            : (date.getDay() === 0 || date.getDay() === 6) &&
+                                "text-muted-foreground",
+                        )}
+                      >
+                        {date.getDate()}
+                      </span>
+                    </time>
+                    <div className="space-y-0.5">
+                      {events.slice(0, 3).map((event) => (
+                        <button
+                          key={event.id}
+                          type="button"
+                          title={event.title}
+                          onClick={(click) => onOpenDay(click.currentTarget, key, event.id)}
+                          className={cn(
+                            "block min-h-6 w-full touch-manipulation truncate rounded-sm px-0.5 py-0.5 text-left text-[10px] font-semibold leading-tight hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ring sm:rounded-md sm:px-1.5 sm:text-xs",
+                            event.kind
+                              ? kindStyle[event.kind].chip
+                              : "bg-secondary text-foreground",
+                          )}
+                        >
+                          <span className="hidden sm:inline">
+                            {event.start ? `${event.start} ` : ""}
+                          </span>
+                          {event.title}
+                        </button>
+                      ))}
+                      {extraCount > 0 && (
+                        <button
+                          type="button"
+                          aria-label={c.moreEvents(extraCount)}
+                          onClick={(click) => onOpenDay(click.currentTarget, key)}
+                          className="block min-h-6 w-full touch-manipulation rounded-sm text-center text-[10px] font-semibold text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring sm:text-xs"
+                        >
+                          +{extraCount}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
